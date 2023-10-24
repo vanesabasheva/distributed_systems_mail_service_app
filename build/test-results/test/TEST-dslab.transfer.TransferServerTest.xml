@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="dslab.transfer.TransferServerTest" tests="1" skipped="0" failures="1" errors="0" timestamp="2023-10-24T09:54:55" hostname="DESKTOP-50CM3GD" time="3.109">
+  <properties/>
+  <testcase name="tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly" classname="dslab.transfer.TransferServerTest" time="3.109">
+    <failure message="java.lang.AssertionError: Expected tcp socket on port 10220 to be closed after shutdown&#10;Expected: is &lt;false&gt;&#10;     but: was &lt;true&gt;" type="java.lang.AssertionError">java.lang.AssertionError: Expected tcp socket on port 10220 to be closed after shutdown
+Expected: is &lt;false&gt;
+     but: was &lt;true&gt;
+	at org.hamcrest.MatcherAssert.assertThat(MatcherAssert.java:20)
+	at org.junit.Assert.assertThat(Assert.java:956)
+	at org.junit.rules.ErrorCollector$1.call(ErrorCollector.java:65)
+	at org.junit.rules.ErrorCollector.checkSucceeds(ErrorCollector.java:78)
+	at org.junit.rules.ErrorCollector.checkThat(ErrorCollector.java:63)
+	at dslab.transfer.TransferServerTest.tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly(TransferServerTest.java:54)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:566)
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:50)
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:47)
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+	at org.junit.internal.runners.statements.RunBefores.evaluate(RunBefores.java:26)
+	at org.junit.rules.Verifier$1.evaluate(Verifier.java:35)
+	at org.junit.internal.runners.statements.FailOnTimeout$CallableStatement.call(FailOnTimeout.java:298)
+	at org.junit.internal.runners.statements.FailOnTimeout$CallableStatement.call(FailOnTimeout.java:292)
+	at java.base/java.util.concurrent.FutureTask.run(FutureTask.java:264)
+	at java.base/java.lang.Thread.run(Thread.java:829)
+</failure>
+  </testcase>
+  <system-out><![CDATA[SocketException while handling socket: Software caused connection abort: recv failed
+Test Run Finished: TransferServerTest
+Test Name                                                                        Max Points      Earned Points  
+-------------------------------------------------------------------              ----------      ------------   
+tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly            0.50            0.00           
+Total points possible: 0.5
+Total points earned: 0.0
+
+]]></system-out>
+  <system-err><![CDATA[Oct 24, 2023 11:54:55 AM dslab.transfer.TransferServerTest tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly
+INFO: Starting thread with component dslab.transfer.TransferServer@21234f37
+Oct 24, 2023 11:54:55 AM dslab.transfer.TransferServerTest tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly
+INFO: Waiting for socket to open on port 10220
+Oct 24, 2023 11:54:55 AM dslab.transfer.TransferServerTest tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly
+INFO: Shutting down component dslab.transfer.TransferServer@21234f37
+Oct 24, 2023 11:54:58 AM dslab.transfer.TransferServerTest tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly
+INFO: Waiting for thread to stop for component dslab.transfer.TransferServer@21234f37
+]]></system-err>
+</testsuite>

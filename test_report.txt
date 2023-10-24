@@ -1,0 +1,27 @@
+| Test Name                                                                        | Max Points      | Achieved Points |
+|-------------------------------------------------------------------------------------------------------------------|
+| mbx_00_runAndShutdownMailboxServer_createsAndStopsTcpSocketCorrectly             | 0.5             | 0.0             |
+| mbx_01_dmtp_simple                                                               | 0.5             | 0.0             |
+| mbx_02_dmtp_ignoresForeignAddresses                                              | 0.5             | 0.0             |
+| mbx_03_dmtp_rejectsUnknownAddresses                                              | 0.5             | 0.0             |
+| mbx_04_login_withIllegalCredentials                                              | 0.5             | 0.0             |
+| mbx_05_login_Logout                                                              | 0.5             | 0.0             |
+| mbx_06_list_showsAcceptedMailCorrectly                                           | 0.5             | 0.0             |
+| mbx_07_list_showsOnlyUsersEmails                                                 | 1.0             | 0.0             |
+| mbx_08_show_showsEmailCorrectly                                                  | 1.0             | 0.0             |
+| mbx_09_delete_removesMail                                                        | 0.5             | 0.0             |
+| mon_00_runAndShutdownMonitoringServer_createsAndStopsUdpSocketCorrectly          | 0.5             | 0.0             |
+| mon_01_addresses_returnsCorrectStatistics                                        | 0.75            | 0.0             |
+| mon_02_servers_returnsCorrectStatistics                                          | 0.75            | 0.0             |
+| scen_01_simpleEmailSending                                                       | 1.5             | 0.0             |
+| scen_02_multipleRecipients                                                       | 1.5             | 0.0             |
+| scen_03_failureMessage                                                           | 2.0             | 0.0             |
+| scen_04_transferServerSendsMonitoringData                                        | 2.0             | 0.0             |
+| tfs_00_runAndShutdownTransferServer_createsAndStopsTcpSocketCorrectly            | 0.5             | 0.0             |
+| tfs_01_dmtp_simple                                                               | 1.5             | 0.0             |
+| tfs_02_sendWithoutData_returnsErrorOnSend                                        | 0.5             | 0.0             |
+| tfs_03_sendWithoutRecipient_returnsErrorOnSend                                   | 0.5             | 0.0             |
+
+Summary:
+Total points possible: 18.00
+Total points earned: 0.00
