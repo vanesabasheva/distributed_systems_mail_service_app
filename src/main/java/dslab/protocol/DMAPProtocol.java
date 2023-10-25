@@ -45,11 +45,8 @@ public class DMAPProtocol {
       if (command.equalsIgnoreCase("quit")) {
         return "ok bye";
       }
-      if (command.equalsIgnoreCase("show") || command.equalsIgnoreCase("list")
-          || command.equalsIgnoreCase("delete") || command.equalsIgnoreCase("logout")) {
-        return "error not logged in";
-      }
-      return "error unknown command";
+
+      return DMTPProtocol.processUnknownCommand(command);
 
     } else if (state == LOGGEDIN) {
       if (command.equalsIgnoreCase("quit")) {
@@ -66,6 +63,8 @@ public class DMAPProtocol {
       } else if(command.equalsIgnoreCase("delete")) {
         return "ok";
       }
+
+      return DMTPProtocol.processUnknownCommand(command);
     }
     return "";
   }

@@ -13,8 +13,6 @@ public class DMTPProtocol {
   private String[] answers = {"ok", "ok bye", "error", "ok DMTP"};
 
   public String processCommand(String clientCommand) {
-    String output = null;
-
     String command = "", arguments = "";
     if (clientCommand != null) {
       String[] tokens = clientCommand.split(" ", 2); // Split the message into command and arguments
@@ -82,8 +80,16 @@ public class DMTPProtocol {
       } else if (command.equalsIgnoreCase("quit")) {
         return "ok bye";
       } else {
-        return "error unknown command";
+        return this.processCommand(command);
       }
     }
+  }
+
+  public static String processUnknownCommand(String command) {
+    if (command.equalsIgnoreCase("show") || command.equalsIgnoreCase("list")
+        || command.equalsIgnoreCase("delete") || command.equalsIgnoreCase("logout")) {
+      return "error not logged in";
+    }
+    return "error unknown command";
   }
 }

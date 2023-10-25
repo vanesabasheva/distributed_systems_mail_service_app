@@ -24,7 +24,7 @@ public class ListenerThread extends Thread {
 
   @Override
   public void run() {
-    while (!serverSocket.isClosed()) {
+    while (true) {
       Socket client = null;
       try {
         // [SERVER]: waits for a client to connect...
@@ -33,7 +33,6 @@ public class ListenerThread extends Thread {
         // handle incoming connections from client in a separate thread
         ClientHandlerThread clientHandlerThread = new ClientHandlerThread(client);
         clients.add(clientHandlerThread);
-        activeClientSockets.add(client);
 
         // use the threads from the existing pool of threads
         pool.execute(clientHandlerThread);
@@ -45,8 +44,6 @@ public class ListenerThread extends Thread {
       } catch (IOException e) {
         // you should properly handle all other exceptions
         throw new UncheckedIOException(e);
-      } finally {
-        pool.shutdown();
       }
     }
   }

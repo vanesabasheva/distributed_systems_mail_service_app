@@ -11,6 +11,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.net.Socket;
@@ -81,19 +82,21 @@ public class TransferServer implements ITransferServer, Runnable {
     } catch (IOException e) {
       throw new UncheckedIOException("Error while creating server socket", e);
     }
-    // System.out.println("ok DMTP");
-    // create a reader to read from the console
-    BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
-
-    try {
-      // read commands from the console
-      reader.readLine();
-    } catch (IOException e) {
-      // IOException from System.in is very very unlikely (or impossible)
-      // and cannot be handled
+    while(true) {
+      try (
+          PrintWriter writer = new PrintWriter(out, true);
+          BufferedReader reader = new BufferedReader(new InputStreamReader(in))
+          ){
+        if(reader.readLine().equals("shutdown")) {
+          this.shutdown();
+          break;
+        }
+      } catch (IOException e) {
+        // IOException from System.in is very very unlikely (or impossible)
+        // and cannot be handled
+        throw new RuntimeException(e);
+      }
     }
-    // close socket and listening thread
-    //shutdown();
   }
 
   @Override

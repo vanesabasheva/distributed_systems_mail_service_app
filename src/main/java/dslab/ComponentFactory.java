@@ -56,7 +56,6 @@ public final class ComponentFactory {
          */
 
         Config config = new Config(componentId);
-        System.out.println("mailbox");
         return new MailboxServer(componentId, config, in, out);
     }
 

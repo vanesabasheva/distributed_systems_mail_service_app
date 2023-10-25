@@ -1,5 +1,7 @@
 package dslab.mailbox.tcp;
 
+import dslab.protocol.DMAPProtocol;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -8,12 +10,9 @@ import java.io.UncheckedIOException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
-import java.util.Objects;
 
 public class MailClientHandlerThread extends Thread {
   private Socket client;
-  private BufferedReader reader;
-  private PrintWriter writer;
   private User user;
 
   public MailClientHandlerThread(Socket client) {
@@ -22,38 +21,34 @@ public class MailClientHandlerThread extends Thread {
 
   @Override
   public void run() {
+    // prepare the input reader for the socket
+    // prepare the writer for responding to clients requests
+
     while (true) {
-      try {
-        // prepare the input reader for the socket
-        reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
-        // prepare the writer for responding to clients requests
-        writer = new PrintWriter(client.getOutputStream());
+      try (BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
+           PrintWriter writer = new PrintWriter(client.getOutputStream(), true);
+      ) {
 
-        writer.println("ok DMTP");
-        writer.flush();
+        String request, response;
+        // Initiate conversation with client
+        DMAPProtocol dmapProtocol = new DMAPProtocol();
+        response = dmapProtocol.processCommand(null);
+        writer.println(response);
 
-        String request;
         // read client requests
         while ((request = reader.readLine()) != null) {
-          System.out.println("Client sent the following request: " + request);
-
-          String[] tokens = request.split(" ", 2); // Split the message into command and arguments
-          String command = tokens[0].toLowerCase();
-          String arguments = (tokens.length > 1) ? tokens[1] : null;
+          //System.out.println("Client sent the following request: " + request);
 
           // Process the command and arguments
-          String response = processCommand(command, arguments);
-
-          //TODO: handle unknown or malicious commands
-          if (response.equals("error unknown command")) {
-            writer.println(response);
+          response = dmapProtocol.processCommand(request);
+          writer.println(response);
+          if (response.equals("ok bye")) {
             break;
           }
-          // print request
-          writer.println(response);
-          writer.flush();
 
-          if (command.equals("quit")) {
+          //TODO: handle unknown or malicious commands
+          if (response.equals("error protocol error")) {
+            writer.println(response);
             break;
           }
         }
@@ -71,8 +66,6 @@ public class MailClientHandlerThread extends Thread {
       } finally {
         if (client != null && !client.isClosed()) {
           try {
-            writer.close();
-            reader.close();
             client.close();
           } catch (IOException e) {
             // Ignored because we cannot handle it
@@ -80,52 +73,5 @@ public class MailClientHandlerThread extends Thread {
         }
       }
     }
-
   }
-
-  private String processCommand(String command, String arguments) {
-    switch (command) {
-
-      case "login":
-        if (arguments == null || Objects.equals(arguments, "")) {
-          return "error usage: 'login <username> <password'";
-        }
-        String[] user = arguments.split("\\s");
-        if (user.length > 2 || user.length < 1) {
-          return "error usage: 'login <username> <password'";
-        }
-
-        this.user.setUsername(user[0]);
-        this.user.setPassword(user[1]);
-        return "ok ";
-
-      case "list":
-        if(this.user == null) {
-          return "error not logged in";
-        }
-        return "ok";
-
-      case "show":
-        if(this.user == null) {
-          return "error not logged in";
-        }
-        return "ok";
-
-      case "data":
-        return "ok";
-
-      case "send":
-        return "ok";
-
-      case "quit":
-        // Handle 'quit' command
-        // ...
-        return "ok bye";
-
-      default:
-        // Handle undefined commands
-        return "error Unknown command";
-    }
-  }
-
 }

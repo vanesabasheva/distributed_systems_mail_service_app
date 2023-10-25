@@ -51,7 +51,7 @@ public class ClientHandlerThread implements Runnable {
           }
 
           //TODO: handle unknown or malicious commands
-          if(response.equals("error unknown command")) {
+          if(response.equals("error protocol error")) {
             break;
           }
         }
