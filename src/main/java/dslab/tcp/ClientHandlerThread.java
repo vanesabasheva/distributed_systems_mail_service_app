@@ -1,6 +1,10 @@
-package dslab.mailbox.tcp;
+package dslab.tcp;
 
-import dslab.protocol.DMAPProtocol;
+import dslab.protocol.DmapProtocol;
+import dslab.protocol.DmtpClientProtocol;
+import dslab.protocol.DmtpServerProtocol;
+import dslab.protocol.IProtocol;
+import dslab.util.Config;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,44 +15,60 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
 
-public class MailClientHandlerThread extends Thread {
+public class ClientHandlerThread implements Runnable {
   private Socket client;
-  private User user;
+  private Email email;
+  private Config config;
+  IProtocol protocol;
 
-  public MailClientHandlerThread(Socket client) {
+  public ClientHandlerThread(Socket client, Config config, IProtocol protocol) {
     this.client = client;
+    this.config = config;
+    this.protocol = protocol;
   }
 
   @Override
   public void run() {
-    // prepare the input reader for the socket
-    // prepare the writer for responding to clients requests
-
+    if(this.protocol.getClass() == DmtpServerProtocol.class) {
+      protocol = new DmtpServerProtocol();
+    } else if (this.protocol.getClass() == DmtpClientProtocol.class) {
+      protocol = new DmtpClientProtocol();
+    } else {
+      protocol = new DmapProtocol();
+    }
+    email = new Email(null, null, null, null);
     while (true) {
-      try (BufferedReader reader = new BufferedReader(new InputStreamReader(client.getInputStream()));
-           PrintWriter writer = new PrintWriter(client.getOutputStream(), true);
+      // prepare the input reader for the socket
+      // prepare the writer for responding to clients requests
+      try (
+          PrintWriter writer =
+              new PrintWriter(client.getOutputStream(), true);
+          BufferedReader reader = new BufferedReader(
+              new InputStreamReader(client.getInputStream()));
       ) {
 
         String request, response;
-        // Initiate conversation with client
-        DMAPProtocol dmapProtocol = new DMAPProtocol();
-        response = dmapProtocol.processCommand(null);
+
+        // Initiate conversation with client depending on whether a user or the transfer server  is the client
+
+        response = protocol.processCommand(null);
+
         writer.println(response);
 
         // read client requests
         while ((request = reader.readLine()) != null) {
+
           //System.out.println("Client sent the following request: " + request);
 
-          // Process the command and arguments
-          response = dmapProtocol.processCommand(request);
+          // Process the command and arguments depending on the type of client (user or transfer server)
+          response = protocol.processCommand(request);
+
           writer.println(response);
           if (response.equals("ok bye")) {
             break;
           }
 
-          //TODO: handle unknown or malicious commands
           if (response.equals("error protocol error")) {
-            writer.println(response);
             break;
           }
         }

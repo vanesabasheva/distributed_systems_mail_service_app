@@ -1,11 +1,11 @@
 package dslab.transfer;
 
 import dslab.ComponentFactory;
-import dslab.transfer.tcp.ListenerThread;
+import dslab.protocol.DmtpServerProtocol;
+import dslab.tcp.ServerThread;
 import dslab.util.Config;
 
 import java.io.BufferedReader;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -14,12 +14,9 @@ import java.io.PrintStream;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
-import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 // When a client wants to send a message, it has to connect to a server that speaks DMTP via TCP, and
 // send the instructions over the socket. A server that accepts DMTP instructions will immediately respond to each instruction with a specific
@@ -77,7 +74,7 @@ public class TransferServer implements ITransferServer, Runnable {
     try {
       // Prepare to bind to the specified port, create and start new TCP Server Socket
       listener = new ServerSocket(config.getInt("tcp.port"));
-      new ListenerThread(listener).start();
+      new ServerThread(listener, config, new DmtpServerProtocol()).start();
 
     } catch (IOException e) {
       throw new UncheckedIOException("Error while creating server socket", e);
@@ -115,6 +112,8 @@ public class TransferServer implements ITransferServer, Runnable {
 
   public static void main(String[] args) throws Exception {
     ITransferServer server = ComponentFactory.createTransferServer(args[0], System.in, System.out);
+
+    // store domain with the associated socket address from the domains.properties file
     domainToSocketAddressMap = new HashMap<>();
     properties = new Properties();
     properties.load(new FileReader(PROPERTIES_FILE));

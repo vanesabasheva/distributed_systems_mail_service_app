@@ -2,7 +2,7 @@ package dslab.protocol;
 
 import dslab.mailbox.MailboxServer;
 
-public class DMAPProtocol {
+public class DmapProtocol implements IProtocol {
   private static final int WAITING = 0;
   private static final int LOGIN = 1;
   private static final int LOGGEDIN = 2;
@@ -31,7 +31,7 @@ public class DMAPProtocol {
           return "error login with username and password";
         }
 
-        String loggedIn = MailboxServer.loginUser(credentials[0], credentials[1]);
+        String loggedIn = MailboxServer.authenticateUser(credentials[0], credentials[1]);
         if (loggedIn.equals("ok")) {
           state = LOGGEDIN;
         }
@@ -46,7 +46,7 @@ public class DMAPProtocol {
         return "ok bye";
       }
 
-      return DMTPProtocol.processUnknownCommand(command);
+      return this.processUnknownCommand(command);
 
     } else if (state == LOGGEDIN) {
       if (command.equalsIgnoreCase("quit")) {
@@ -64,9 +64,17 @@ public class DMAPProtocol {
         return "ok";
       }
 
-      return DMTPProtocol.processUnknownCommand(command);
+      return this.processUnknownCommand(command);
     }
     return "";
+  }
+
+  private String processUnknownCommand(String command) {
+    if (command.equalsIgnoreCase("show") || command.equalsIgnoreCase("list")
+        || command.equalsIgnoreCase("delete") || command.equalsIgnoreCase("logout")) {
+      return "error not logged in";
+    }
+    return "error unknown command";
   }
 
 }

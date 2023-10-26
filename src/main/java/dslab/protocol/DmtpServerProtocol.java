@@ -1,10 +1,12 @@
 package dslab.protocol;
 
-import dslab.transfer.tcp.Email;
+import dslab.mailbox.MailboxServer;
+import dslab.transfer.TransferServer;
+import dslab.tcp.Email;
 
 import java.util.Objects;
 
-public class DMTPProtocol {
+public class DmtpServerProtocol implements IProtocol {
   private static final int WAITING = 0;
   private static final int BEGIN = 1;
   private static final int WRITING = 2;
@@ -12,6 +14,7 @@ public class DMTPProtocol {
   private Email email = new Email(null, null, null, null);
   private String[] answers = {"ok", "ok bye", "error", "ok DMTP"};
 
+  @Override
   public String processCommand(String clientCommand) {
     String command = "", arguments = "";
     if (clientCommand != null) {
@@ -35,12 +38,19 @@ public class DMTPProtocol {
         if (arguments == null || Objects.equals(arguments, "")) {
           return "error no recipients";
         }
-        // check the number of recipients and if the mails are valid
-        String[] recipients = arguments.split("\\s");
+        // check the number of recipients
+        // check if the mails are valid
+        // check if an email is sent to a known mailbox domain
+        // check if the recipient/s is/are known to the mailbox/es
+
+        String[] recipients = arguments.split(",");
         for (String recipientMail : recipients) {
           String[] parts = recipientMail.split("@");
           if (parts.length < 2) {
             return "error not a valid email";
+          }
+          if(TransferServer.getSocketAddressForDomain(parts[1]) == null) {
+            return "error unknown mailbox domain";
           }
         }
         String recipientNo = String.valueOf(recipients.length);
@@ -78,18 +88,21 @@ public class DMTPProtocol {
         }
         return "ok";
       } else if (command.equalsIgnoreCase("quit")) {
+        state = WAITING;
         return "ok bye";
       } else {
-        return this.processCommand(command);
+        return this.processUnknownCommand(command);
       }
     }
   }
 
-  public static String processUnknownCommand(String command) {
-    if (command.equalsIgnoreCase("show") || command.equalsIgnoreCase("list")
-        || command.equalsIgnoreCase("delete") || command.equalsIgnoreCase("logout")) {
-      return "error not logged in";
+  private String processUnknownCommand(String command) {
+    if (command.equalsIgnoreCase("BREW") || command.equalsIgnoreCase("POST")
+        || command.equalsIgnoreCase("GET") || command.equalsIgnoreCase("WHEN") ||
+        command.equalsIgnoreCase("PROPFIND")) {
+      return "error protocol error";
     }
     return "error unknown command";
   }
+
 }

@@ -1,9 +1,9 @@
 package dslab.mailbox;
 
 import dslab.ComponentFactory;
-import dslab.mailbox.tcp.MailListenerThread;
-import dslab.mailbox.tcp.User;
-import dslab.transfer.tcp.ListenerThread;
+import dslab.protocol.DmapProtocol;
+import dslab.protocol.DmtpClientProtocol;
+import dslab.tcp.ServerThread;
 import dslab.util.Config;
 
 import java.io.BufferedReader;
@@ -20,13 +20,13 @@ import java.util.Map;
 import java.util.Properties;
 
 public class MailboxServer implements IMailboxServer, Runnable {
+  private static Map<String, String> usernameToPasswordMap;
+  private static String USERS_FILE = "";
+  private static String DOMAIN = "";
   private Config config;
   private String componentId;
   private InputStream in;
   private PrintStream out;
-  private static Map<String, String> usernameToPasswordMap;
-  private static Properties users;
-  private static String USERS_FILE = "";
   private ServerSocket dmap_listener;
   private ServerSocket dmtp_listener;
 
@@ -44,6 +44,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
     this.in = in;
     this.out = out;
     USERS_FILE = "src\\main\\resources\\" + this.config.getString("users.config");
+    DOMAIN = this.config.getString("domain");
   }
 
   // Mailbox servers only
@@ -57,10 +58,12 @@ public class MailboxServer implements IMailboxServer, Runnable {
       dmtp_listener = new ServerSocket(config.getInt("dmtp.tcp.port"));
       dmap_listener = new ServerSocket(config.getInt("dmap.tcp.port"));
 
-      new ListenerThread(dmtp_listener).start();
-      new MailListenerThread(dmap_listener).start();
+      new ServerThread(dmtp_listener, config, new DmtpClientProtocol()).start();
+      new ServerThread(dmap_listener, config, new DmapProtocol()).start();
+      //new MailListenerThread(dmap_listener).start();
 
-    } catch (IOException e) {      throw new UncheckedIOException("Error while creating server socket", e);
+    } catch (IOException e) {
+      throw new UncheckedIOException("Error while creating server socket", e);
     }
 
     while (true) {
@@ -112,15 +115,26 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
   // Checks if the username password pair is stored in this mailbox and returns a string
   // that notifies if the username/password is incorrect or if login is accepted
-  public static String loginUser(String username, String password) {
+  public static String authenticateUser(String username, String password) {
+    /*
     System.out.println("Debug mailbox nullpointer");
     System.out.println(usernameToPasswordMap);
-    if (!usernameToPasswordMap.containsKey(username)) {
+
+     */
+    if (!isKnownUser(username)) {
       return "error unknown user";
     } else if (!usernameToPasswordMap.get(username).equals(password)) {
       return "error wrong password";
     }
     return "ok";
+  }
+
+  public static String getDOMAIN() {
+    return DOMAIN;
+  }
+
+  public static boolean isKnownUser(String username) {
+    return usernameToPasswordMap.containsKey(username);
   }
 
   public static void main(String[] args) throws Exception {
@@ -129,7 +143,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
     // Set users of the current mailbox, parse their username and password and store them in the map
     usernameToPasswordMap = new HashMap<>();
     System.out.println(USERS_FILE);
-    users = new Properties();
+    Properties users = new Properties();
     users.load(new FileReader(USERS_FILE));
     for (String key : users.stringPropertyNames()) {
       String value = users.getProperty(key);

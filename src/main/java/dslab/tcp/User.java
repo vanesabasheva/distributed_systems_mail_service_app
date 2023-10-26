@@ -1,4 +1,4 @@
-package dslab.mailbox.tcp;
+package dslab.tcp;
 
 public class User {
   private String username;
