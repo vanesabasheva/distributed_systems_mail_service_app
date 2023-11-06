@@ -1,22 +1,24 @@
 package dslab.transfer;
 
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.protocol.DmtpServerProtocol;
-import dslab.tcp.ServerThread;
+import dslab.transfer.tcp.ServerThread;
 import dslab.util.Config;
 
-import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 // When a client wants to send a message, it has to connect to a server that speaks DMTP via TCP, and
 // send the instructions over the socket. A server that accepts DMTP instructions will immediately respond to each instruction with a specific
@@ -46,12 +48,10 @@ public class TransferServer implements ITransferServer, Runnable {
 
   private Config config;
   private String componentId;
-  private InputStream in;
-  private PrintStream out;
   private ServerSocket listener;
-  private static final String PROPERTIES_FILE = "src\\main\\resources\\domains.properties";
-  private static Map<String, String> domainToSocketAddressMap;
-  private static Properties properties;
+  private Shell shell;
+  private Config domains;
+  private Set<Socket> socketSet;
 
   /**
    * Creates a new server instance.
@@ -64,68 +64,57 @@ public class TransferServer implements ITransferServer, Runnable {
   public TransferServer(String componentId, Config config, InputStream in, PrintStream out) {
     this.componentId = componentId;
     this.config = config;
-    this.in = in;
-    this.out = out;
-
+    this.shell = new Shell(in, out);
+    this.shell.register(this);
+    this.socketSet = ConcurrentHashMap.newKeySet();
   }
 
   @Override
   public void run() {
+    this.domains = new Config("domains.properties");
+    System.out.println("Starting [T SERVER]...");
+
     try {
       // Prepare to bind to the specified port, create and start new TCP Server Socket
       listener = new ServerSocket(config.getInt("tcp.port"));
-      new ServerThread(listener, config, new DmtpServerProtocol()).start();
-
+      new ServerThread(listener, domains, config, socketSet).start();
     } catch (IOException e) {
       throw new UncheckedIOException("Error while creating server socket", e);
     }
-    while(true) {
-      try (
-          PrintWriter writer = new PrintWriter(out, true);
-          BufferedReader reader = new BufferedReader(new InputStreamReader(in))
-          ){
-        if(reader.readLine().equals("shutdown")) {
-          this.shutdown();
-          break;
-        }
-      } catch (IOException e) {
-        // IOException from System.in is very very unlikely (or impossible)
-        // and cannot be handled
-        throw new RuntimeException(e);
-      }
-    }
+
+    System.out.println("Starting [SHELL]...");
+    shell.run();
   }
 
   @Override
+  @Command
   public void shutdown() {
-    if (listener != null && !listener.isClosed()) {
+    if (this.listener != null && !this.listener.isClosed()) {
       try {
-        in.close();
-        out.close();
-        listener.close();
+        this.listener.close();
+        System.out.println("[SERVER] listener closed ...");
       } catch (IOException e) {
         e.printStackTrace();
         System.err.println("Error while closing server socket: " + e.getMessage());
       }
     }
+
+    // close all open socket connections
+    for (Socket openSocket: socketSet) {
+      try {
+        openSocket.close();
+      } catch (IOException e){
+        // cannot be handled
+      }
+    }
+    // close shell
+    throw new StopShellException();
   }
 
   public static void main(String[] args) throws Exception {
     ITransferServer server = ComponentFactory.createTransferServer(args[0], System.in, System.out);
-
-    // store domain with the associated socket address from the domains.properties file
-    domainToSocketAddressMap = new HashMap<>();
-    properties = new Properties();
-    properties.load(new FileReader(PROPERTIES_FILE));
-    for (String key: properties.stringPropertyNames()) {
-      String value = properties.getProperty(key);
-      domainToSocketAddressMap.put(key, value);
-    }
     server.run();
   }
 
-  public static String getSocketAddressForDomain(String domain) {
-      return domainToSocketAddressMap.get(domain);
-  }
 
 }

@@ -1,8 +1,7 @@
-package dslab.tcp;
+package dslab.mailbox.tcp;
 
 import dslab.protocol.DmapProtocol;
 import dslab.protocol.DmtpClientProtocol;
-import dslab.protocol.DmtpServerProtocol;
 import dslab.protocol.IProtocol;
 import dslab.util.Config;
 
@@ -15,13 +14,12 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
 
-public class ClientHandlerThread implements Runnable {
+public class MailClientHandlerThread implements Runnable {
   private Socket client;
-  private Email email;
   private Config config;
-  IProtocol protocol;
+  private IProtocol protocol;
 
-  public ClientHandlerThread(Socket client, Config config, IProtocol protocol) {
+  public MailClientHandlerThread(Socket client, Config config, IProtocol protocol) {
     this.client = client;
     this.config = config;
     this.protocol = protocol;
@@ -29,14 +27,11 @@ public class ClientHandlerThread implements Runnable {
 
   @Override
   public void run() {
-    if(this.protocol.getClass() == DmtpServerProtocol.class) {
-      protocol = new DmtpServerProtocol();
-    } else if (this.protocol.getClass() == DmtpClientProtocol.class) {
+    if (this.protocol.getClass() == DmtpClientProtocol.class) {
       protocol = new DmtpClientProtocol();
     } else {
       protocol = new DmapProtocol();
     }
-    email = new Email(null, null, null, null);
     while (true) {
       // prepare the input reader for the socket
       // prepare the writer for responding to clients requests

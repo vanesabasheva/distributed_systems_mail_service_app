@@ -1,4 +1,4 @@
-package dslab.tcp;
+package dslab.transfer.tcp;
 
 public class User {
   private String username;

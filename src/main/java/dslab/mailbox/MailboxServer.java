@@ -1,9 +1,12 @@
 package dslab.mailbox;
 
+import at.ac.tuwien.dsg.orvell.Shell;
+import at.ac.tuwien.dsg.orvell.StopShellException;
+import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
+import dslab.mailbox.tcp.MailServerThread;
 import dslab.protocol.DmapProtocol;
 import dslab.protocol.DmtpClientProtocol;
-import dslab.tcp.ServerThread;
 import dslab.util.Config;
 
 import java.io.BufferedReader;
@@ -27,6 +30,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
   private String componentId;
   private InputStream in;
   private PrintStream out;
+  private Shell shell;
   private ServerSocket dmap_listener;
   private ServerSocket dmtp_listener;
 
@@ -43,8 +47,8 @@ public class MailboxServer implements IMailboxServer, Runnable {
     this.config = config;
     this.in = in;
     this.out = out;
-    USERS_FILE = "src\\main\\resources\\" + this.config.getString("users.config");
-    DOMAIN = this.config.getString("domain");
+    this.shell = new Shell(in, out);
+    this.shell.register(this);
   }
 
   // Mailbox servers only
@@ -53,13 +57,15 @@ public class MailboxServer implements IMailboxServer, Runnable {
   //with an error message
   @Override
   public void run() {
+    System.out.println("Starting [M SERVER]...");
+
     try {
       // Prepare to bind to the specified port, create and start new TCP Server Socket
       dmtp_listener = new ServerSocket(config.getInt("dmtp.tcp.port"));
       dmap_listener = new ServerSocket(config.getInt("dmap.tcp.port"));
 
-      new ServerThread(dmtp_listener, config, new DmtpClientProtocol()).start();
-      new ServerThread(dmap_listener, config, new DmapProtocol()).start();
+      new MailServerThread(dmtp_listener, config, new DmtpClientProtocol()).start();
+      new MailServerThread(dmap_listener, config, new DmapProtocol()).start();
       //new MailListenerThread(dmap_listener).start();
 
     } catch (IOException e) {
@@ -84,6 +90,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
   }
 
   @Override
+  @Command
   public void shutdown() {
     try {
       in.close();
@@ -110,6 +117,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
         System.err.println("Error while closing dmap server socket");
       }
     }
+
+    // close shell
+    throw new StopShellException();
 
   }
 
@@ -139,17 +149,6 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
   public static void main(String[] args) throws Exception {
     IMailboxServer server = ComponentFactory.createMailboxServer(args[0], System.in, System.out);
-
-    // Set users of the current mailbox, parse their username and password and store them in the map
-    usernameToPasswordMap = new HashMap<>();
-    System.out.println(USERS_FILE);
-    Properties users = new Properties();
-    users.load(new FileReader(USERS_FILE));
-    for (String key : users.stringPropertyNames()) {
-      String value = users.getProperty(key);
-      usernameToPasswordMap.put(key, value);
-    }
-
     server.run();
   }
 }

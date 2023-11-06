@@ -1,4 +1,4 @@
-package dslab.tcp;
+package dslab.transfer.tcp;
 
 public class Email {
   private String sender;
