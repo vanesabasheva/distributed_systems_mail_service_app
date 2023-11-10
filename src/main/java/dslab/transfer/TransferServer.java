@@ -92,7 +92,7 @@ public class TransferServer implements ITransferServer, Runnable {
     if (this.listener != null && !this.listener.isClosed()) {
       try {
         this.listener.close();
-        System.out.println("[SERVER] listener closed ...");
+        System.out.println("[T SERVER] listener closed ...");
       } catch (IOException e) {
         e.printStackTrace();
         System.err.println("Error while closing server socket: " + e.getMessage());
@@ -107,6 +107,7 @@ public class TransferServer implements ITransferServer, Runnable {
         // cannot be handled
       }
     }
+
     // close shell
     throw new StopShellException();
   }

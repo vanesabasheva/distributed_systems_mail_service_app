@@ -4,36 +4,39 @@ import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.mailbox.tcp.MailServerThread;
+import dslab.mailbox.tcp.dmtp.MailServerThread;
+import dslab.mailbox.tcp.dmap.UserMailServerThread;
 import dslab.protocol.DmapProtocol;
 import dslab.protocol.DmtpClientProtocol;
 import dslab.util.Config;
 
-import java.io.BufferedReader;
-import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.io.PrintWriter;
 import java.io.UncheckedIOException;
 import java.net.ServerSocket;
-import java.util.HashMap;
+import java.net.Socket;
 import java.util.Map;
-import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class MailboxServer implements IMailboxServer, Runnable {
-  private static Map<String, String> usernameToPasswordMap;
-  private static String USERS_FILE = "";
   private static String DOMAIN = "";
+  private static Config USERS;
   private Config config;
   private String componentId;
-  private InputStream in;
-  private PrintStream out;
   private Shell shell;
-  private ServerSocket dmap_listener;
-  private ServerSocket dmtp_listener;
-
+  private ServerSocket dmapListener;
+  private ServerSocket dmtpListener;
+  private Set<Socket> socketSet;
+  // a map containing the username as key, and his personal mailbox
+  // as a map of an integer (for the mail id) and a blocking queue from
+  // strings (the latter is equal to a mail) which is thread safe
+  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
+  // a generator for incrementing the ids of the mails of a specific user
+  private Map<String, AtomicInteger> emailIdGenerators;
   /**
    * Creates a new server instance.
    *
@@ -45,10 +48,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
   public MailboxServer(String componentId, Config config, InputStream in, PrintStream out) {
     this.componentId = componentId;
     this.config = config;
-    this.in = in;
-    this.out = out;
     this.shell = new Shell(in, out);
     this.shell.register(this);
+    this.socketSet = ConcurrentHashMap.newKeySet();
   }
 
   // Mailbox servers only
@@ -57,64 +59,67 @@ public class MailboxServer implements IMailboxServer, Runnable {
   //with an error message
   @Override
   public void run() {
-    System.out.println("Starting [M SERVER]...");
+    DOMAIN = this.config.getString("domain");
+    USERS = new Config(this.config.getString("users.config"));
 
+    // initialize empty storage for mailboxes and storage for id generators for each user
+    this.userMailboxes = new ConcurrentHashMap<>();
+    this.emailIdGenerators = new ConcurrentHashMap<>();
+
+    Set<String> usersInMailbox = USERS.listKeys();
+    for (String username: usersInMailbox) {
+      // initialize an empty mailbox for the current user
+      Map<Integer, BlockingQueue<String>> mails = new ConcurrentHashMap<>();
+      this.userMailboxes.put(username, mails);
+
+      // start incrementing the mail ids from id = 0
+      this.emailIdGenerators.put(username, new AtomicInteger(0));
+    }
+
+    System.out.println("Starting [M SERVER]...");
     try {
       // Prepare to bind to the specified port, create and start new TCP Server Socket
-      dmtp_listener = new ServerSocket(config.getInt("dmtp.tcp.port"));
-      dmap_listener = new ServerSocket(config.getInt("dmap.tcp.port"));
+      dmtpListener = new ServerSocket(config.getInt("dmtp.tcp.port"));
+      dmapListener = new ServerSocket(config.getInt("dmap.tcp.port"));
 
-      new MailServerThread(dmtp_listener, config, new DmtpClientProtocol()).start();
-      new MailServerThread(dmap_listener, config, new DmapProtocol()).start();
-      //new MailListenerThread(dmap_listener).start();
+      new MailServerThread(dmtpListener, config, socketSet, userMailboxes, emailIdGenerators).start();
+      new UserMailServerThread(dmapListener, config, socketSet, userMailboxes).start();
 
     } catch (IOException e) {
       throw new UncheckedIOException("Error while creating server socket", e);
     }
 
-    while (true) {
-      try (
-          PrintWriter writer = new PrintWriter(out, true);
-          BufferedReader reader = new BufferedReader(new InputStreamReader(in))
-      ) {
-        if (reader.readLine().equals("shutdown")) {
-          this.shutdown();
-          break;
-        }
-      } catch (IOException e) {
-        // IOException from System.in is very very unlikely (or impossible)
-        // and cannot be handled
-        throw new RuntimeException(e);
-      }
-    }
+    System.out.println("Starting [SHELL]...");
+    shell.run();
   }
 
   @Override
   @Command
   public void shutdown() {
-    try {
-      in.close();
-      out.close();
-      dmtp_listener.close();
-      dmap_listener.close();
-    } catch (IOException e) {
-      e.printStackTrace();
-      System.err.println("Error while closing server socket: " + e.getMessage());
-    }
 
-    if (dmtp_listener != null && !dmtp_listener.isClosed()) {
+    if (dmtpListener != null && !dmtpListener.isClosed()) {
       try {
-        dmtp_listener.close();
+        this.dmtpListener.close();
+        System.out.println("[M DMTP SERVER] listener closed");
       } catch (IOException e) {
         System.err.println("Error while closing server socket: " + e.getMessage());
       }
     }
-    if (dmap_listener != null && !dmap_listener.isClosed()) {
+    if (dmapListener != null && !dmapListener.isClosed()) {
       try {
-
-        dmap_listener.close();
+        this.dmapListener.close();
+        System.out.println("[M DMAP SERVER] listener closed...");
       } catch (IOException e) {
         System.err.println("Error while closing dmap server socket");
+      }
+    }
+
+    // close all open socket connections
+    for (Socket openSocket : socketSet) {
+      try {
+        openSocket.close();
+      } catch (IOException e) {
+        // cannot be handled
       }
     }
 
@@ -126,14 +131,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
   // Checks if the username password pair is stored in this mailbox and returns a string
   // that notifies if the username/password is incorrect or if login is accepted
   public static String authenticateUser(String username, String password) {
-    /*
-    System.out.println("Debug mailbox nullpointer");
-    System.out.println(usernameToPasswordMap);
-
-     */
     if (!isKnownUser(username)) {
       return "error unknown user";
-    } else if (!usernameToPasswordMap.get(username).equals(password)) {
+    } else if (!USERS.getString(username).equals(password)) {
       return "error wrong password";
     }
     return "ok";
@@ -144,7 +144,8 @@ public class MailboxServer implements IMailboxServer, Runnable {
   }
 
   public static boolean isKnownUser(String username) {
-    return usernameToPasswordMap.containsKey(username);
+    //TODO: question, can we make it static?
+    return USERS.containsKey(username);
   }
 
   public static void main(String[] args) throws Exception {

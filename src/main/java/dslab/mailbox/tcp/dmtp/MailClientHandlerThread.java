@@ -1,8 +1,6 @@
-package dslab.mailbox.tcp;
+package dslab.mailbox.tcp.dmtp;
 
-import dslab.protocol.DmapProtocol;
 import dslab.protocol.DmtpClientProtocol;
-import dslab.protocol.IProtocol;
 import dslab.util.Config;
 
 import java.io.BufferedReader;
@@ -14,12 +12,14 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
 
+// takes care of incoming TCP connections from Transfer Server, the protocol takes care for saving the messages in the corresponding
+// mailbox if everything is correct
 public class MailClientHandlerThread implements Runnable {
   private Socket client;
   private Config config;
-  private IProtocol protocol;
+  private DmtpClientProtocol protocol;
 
-  public MailClientHandlerThread(Socket client, Config config, IProtocol protocol) {
+  public MailClientHandlerThread(Socket client, Config config, DmtpClientProtocol protocol) {
     this.client = client;
     this.config = config;
     this.protocol = protocol;
@@ -27,11 +27,6 @@ public class MailClientHandlerThread implements Runnable {
 
   @Override
   public void run() {
-    if (this.protocol.getClass() == DmtpClientProtocol.class) {
-      protocol = new DmtpClientProtocol();
-    } else {
-      protocol = new DmapProtocol();
-    }
     while (true) {
       // prepare the input reader for the socket
       // prepare the writer for responding to clients requests
@@ -44,7 +39,7 @@ public class MailClientHandlerThread implements Runnable {
 
         String request, response;
 
-        // Initiate conversation with client depending on whether a user or the transfer server  is the client
+        // Initiate conversation with client which can be a normal user or the transfer server
 
         response = protocol.processCommand(null);
 

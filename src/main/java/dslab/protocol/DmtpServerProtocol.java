@@ -11,10 +11,9 @@ public class DmtpServerProtocol implements IProtocol {
   private static final int BEGIN = 1;
   private static final int WRITING = 2;
   private int state = WAITING;
-  private String[] answers = {"ok", "ok bye", "error", "ok DMTP"};
   private BlockingQueue<String> email = new LinkedBlockingQueue<>();
   private BlockingQueue<String> recipientsDomains = new LinkedBlockingQueue<>();
-  private Email emailObject = new Email(null, null, null, null);
+  private Email emailCompletionChecker = new Email(null, null, null, null);
 
   @Override
   public String processCommand(String clientCommand) {
@@ -36,7 +35,7 @@ public class DmtpServerProtocol implements IProtocol {
         this.email.add(clientCommand);
         return "ok";
       } else {
-        if (processUnknownCommand(command).equals("error protocol error")){
+        if (processUnknownCommand(command).equals("error protocol error")) {
           return "error protocol error";
         }
         return "error no begin";
@@ -64,7 +63,7 @@ public class DmtpServerProtocol implements IProtocol {
           }
         }
 
-        this.emailObject.setRecipients(recipients);
+        this.emailCompletionChecker.setRecipients(recipients);
         this.email.add(clientCommand);
 
         String recipientNo = String.valueOf(recipients.length);
@@ -85,42 +84,41 @@ public class DmtpServerProtocol implements IProtocol {
         if (sender.length != 2) {
           return "error not a valid mail";
         }
-        this.emailObject.setSender(sender[0]);
+        this.emailCompletionChecker.setSender(sender[0]);
         this.email.add(clientCommand);
         return "ok";
 
 
       } else if (command.equalsIgnoreCase("subject")) {
-        this.emailObject.setSubject(arguments);
+        this.emailCompletionChecker.setSubject(arguments);
         this.email.add(clientCommand);
         return "ok";
 
 
       } else if (command.equalsIgnoreCase("data")) {
-        this.emailObject.setData(arguments);
+        this.emailCompletionChecker.setData(arguments);
         this.email.add(clientCommand);
         return "ok";
 
       } else if (command.equalsIgnoreCase("begin")) {
         // reset everything written in the mail
-        this.emailObject = new Email(null, null, null, null);
+        this.emailCompletionChecker = new Email(null, null, null, null);
         this.email = new LinkedBlockingQueue<>();
         return "ok";
-      }
 
-      //check if all data for the email is given
-      else if (command.equalsIgnoreCase("send")) {
-        if (this.emailObject.getSender() == null) {
+      } else if (command.equalsIgnoreCase("send")) {
+        //check if all data for the email is given
+        if (this.emailCompletionChecker.getSender() == null) {
           return "error no sender";
         }
-        if (this.emailObject.getRecipients() == null) {
+        if (this.emailCompletionChecker.getRecipients() == null) {
           return "error no recipient";
 
         }
-        if (this.emailObject.getData() == null) {
+        if (this.emailCompletionChecker.getData() == null) {
           return "error no data";
         }
-        if (this.emailObject.getSubject() == null) {
+        if (this.emailCompletionChecker.getSubject() == null) {
           return "error no subject";
         }
         state = WRITING;

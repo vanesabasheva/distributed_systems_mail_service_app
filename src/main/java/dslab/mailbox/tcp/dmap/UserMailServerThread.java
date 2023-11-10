@@ -1,6 +1,7 @@
-package dslab.transfer.tcp;
+package dslab.mailbox.tcp.dmap;
 
-import dslab.protocol.DmtpServerProtocol;
+import dslab.protocol.DmapProtocol;
+import dslab.protocol.IProtocol;
 import dslab.util.Config;
 
 import java.io.IOException;
@@ -8,40 +9,42 @@ import java.io.UncheckedIOException;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
-public class ServerThread extends Thread {
-  private final ServerSocket serverSocket;
-  private final Config config;
-  private final Config domains;
+public class UserMailServerThread extends Thread {
+  private ServerSocket serverSocket;
+  private Config config;
   private Set<Socket> socketSet;
-  private BlockingQueue<String> email;
+  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
   private final ExecutorService pool = Executors.newCachedThreadPool();
-  private final ExecutorService emailForwardingPool = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors() / 2);
 
-  public ServerThread(ServerSocket serverSocket, Config config, Config domains, Set<Socket> socketSet) {
+  public UserMailServerThread(ServerSocket serverSocket, Config config, Set<Socket> socketSet,
+                              Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes) {
     this.serverSocket = serverSocket;
-    this.domains = domains;
     this.config = config;
     this.socketSet = socketSet;
+    this.userMailboxes = userMailboxes;
   }
 
   @Override
   public void run() {
     try {
+
       while (true) {
-        // [SERVER]: waits for a client to connect...
+        // [MAILBOX SERVER]: waits for a client to connect (can be a TransferServer or a normal user)...
         Socket client = serverSocket.accept();
-        // [SERVER]: Connects to a client
-        ClientHandlerThread clientHandlerThread = new ClientHandlerThread(client, config, domains, new DmtpServerProtocol(), socketSet, emailForwardingPool);
+        // [MAILBOX SERVER]: Connects to a client
+        UserMailClientHandlerThread MailClientHandlerThread = new UserMailClientHandlerThread(client, config, new DmapProtocol(userMailboxes));
         socketSet.add(client);
 
         // handle incoming connections from client in a separate thread
         // use the threads from the existing pool of threads
-        pool.execute(clientHandlerThread);
+        pool.execute(MailClientHandlerThread);
       }
     } catch (SocketException e) {
       // when the socket is closed, the I/O methods of the Socket will throw a SocketException
@@ -54,13 +57,6 @@ public class ServerThread extends Thread {
       if (pool != null) {
         pool.shutdownNow();
       }
-      if(emailForwardingPool != null) {
-        emailForwardingPool.shutdownNow();
-      }
-      System.out.println("[POOLS: closed]");
     }
-
-    System.out.println("[SERVER THREAD: closed]");
   }
-
 }
