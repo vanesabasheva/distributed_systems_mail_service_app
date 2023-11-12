@@ -1,8 +1,6 @@
 package dslab.mailbox.tcp.dmtp;
 
-import dslab.mailbox.tcp.dmtp.MailClientHandlerThread;
 import dslab.protocol.DmtpClientProtocol;
-import dslab.protocol.IProtocol;
 import dslab.util.Config;
 
 import java.io.IOException;
@@ -23,16 +21,21 @@ public class MailServerThread extends Thread {
   private Set<Socket> socketSet;
   private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
   private Map<String, AtomicInteger> emailIdGenerators;
+  private String domain;
+  private Config users;
   private final ExecutorService pool = Executors.newCachedThreadPool();
 
   public MailServerThread(ServerSocket serverSocket, Config config, Set<Socket> socketSet,
                           Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
-                          Map<String, AtomicInteger> emailIdGenerators) {
+                          Map<String, AtomicInteger> emailIdGenerators,
+                          String domain, Config users) {
     this.serverSocket = serverSocket;
     this.config = config;
     this.socketSet = socketSet;
     this.userMailboxes = userMailboxes;
     this.emailIdGenerators = emailIdGenerators;
+    this.domain = domain;
+    this.users = users;
   }
 
   @Override
@@ -43,7 +46,7 @@ public class MailServerThread extends Thread {
         // [MAILBOX SERVER]: waits for a client to connect (can be a TransferServer or a normal user)...
         Socket client = serverSocket.accept();
         // [MAILBOX SERVER]: Connects to a client
-        MailClientHandlerThread MailClientHandlerThread = new MailClientHandlerThread(client, config,  new DmtpClientProtocol(userMailboxes, emailIdGenerators));
+        MailClientHandlerThread MailClientHandlerThread = new MailClientHandlerThread(client, config,  new DmtpClientProtocol(userMailboxes, emailIdGenerators, domain, users));
         socketSet.add(client);
 
         // handle incoming connections from client in a separate thread

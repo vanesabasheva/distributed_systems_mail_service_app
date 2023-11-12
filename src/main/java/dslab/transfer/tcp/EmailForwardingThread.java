@@ -7,9 +7,13 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.UncheckedIOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.net.SocketException;
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.concurrent.BlockingQueue;
 
 public class EmailForwardingThread implements Runnable {
@@ -17,10 +21,12 @@ public class EmailForwardingThread implements Runnable {
   private Config config;
   private Config domains;
   private String recipientDomain;
+  private String sender;
   private final BlockingQueue<String> email;
 
-  public EmailForwardingThread(String recipientDomain, Config config, Config domains, BlockingQueue<String> email) {
+  public EmailForwardingThread(String recipientDomain, String sender, Config config, Config domains, BlockingQueue<String> email) {
     this.recipientDomain = recipientDomain;
+    this.sender = sender;
     this.config = config;
     this.domains = domains;
     this.email = email;
@@ -35,7 +41,7 @@ public class EmailForwardingThread implements Runnable {
 
       String[] receiverAddress = this.domainLookup(recipientDomain);
       if (receiverAddress == null) {
-        System.out.println("[ERROR]: No such domain found");
+        System.out.println("[Email Forwarding Thread ERROR]: No such domain found");
         this.sendErrorEmail("domain not found for " + recipientDomain);
         return;
       }
@@ -75,20 +81,26 @@ public class EmailForwardingThread implements Runnable {
           return;
         }
 
-        if (sendLine.equalsIgnoreCase("quit")) {
+        if (sendLine.contains("send")) {
+          System.out.println("[Forwarding THREAD] message successfully forwarded");
+        } else if (sendLine.equalsIgnoreCase("quit")) {
+          System.out.println("[EMAIL Forwarding THREAD] message successfully forwarded");
+          this.sendDatagramPacket(this.sender);
           break;
         }
       }
-      System.out.println("[Forwarding THREAD] message successfully forwarded");
 
     } catch (UnknownHostException e) {
       System.out.println("Cannot connect to host: " + e.getMessage());
+
     } catch (SocketException e) {
       // when the socket is closed, the I/O methods of the Socket will throw a SocketException
       // almost all SocketException cases indicate that the socket was closed
       System.out.println("SocketException while handling socket: " + e.getMessage());
+
     } catch (IOException e) {
       throw new UncheckedIOException(e);
+
     } finally {
       if (socket != null && !socket.isClosed()) {
         try {
@@ -110,7 +122,117 @@ public class EmailForwardingThread implements Runnable {
   }
 
   public void sendErrorEmail(String errorMessage) {
-    // TODO: implement sending error message to the user
+    String ip;
+    try {
+      ip = InetAddress.getLocalHost().getHostAddress();
+    } catch (UnknownHostException e) {
+      System.out.println("[ERROR] could not get ip address of transfer server");
+      return;
+    }
 
+    String to = "to " + this.sender;
+    String from = "from mailer@" + ip;
+    String subject = "subject error";
+
+
+    String[] senderMail = to.split("@");
+    String[] senderIpAndPort = this.domainLookup(senderMail[1]);
+    if (senderIpAndPort == null) {
+      System.out.println("[Email Forwarding THREAD] Sender mail not found");
+      return;
+    }
+
+    String senderIp = senderIpAndPort[0];
+    int senderPort = Integer.parseInt(senderIpAndPort[1]);
+
+    Socket socket = null;
+    try {
+      socket = new Socket(senderIp, senderPort);
+
+      BufferedReader reader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+      PrintWriter writer = new PrintWriter(socket.getOutputStream(), true);
+
+      String serverResponse = reader.readLine();
+      System.out.println(" mailbox server responded: " + serverResponse);
+
+      writer.println("begin");
+      serverResponse = reader.readLine();
+      System.out.println(" mbox server responded: " + serverResponse);
+
+      writer.println(to);
+      serverResponse = reader.readLine();
+      System.out.println(" mbox server responded: " + serverResponse);
+
+      writer.println(from);
+      serverResponse = reader.readLine();
+      System.out.println(" mbox server responded: " + serverResponse);
+
+      writer.println(subject);
+      serverResponse = reader.readLine();
+      System.out.println(" mbox server responded: " + serverResponse);
+
+      writer.println("data " + errorMessage);
+      serverResponse = reader.readLine();
+      System.out.println(" mbox server responded: " + serverResponse);
+
+      writer.println("send");
+      serverResponse = reader.readLine();
+      System.out.println(" mbox server responded: " + serverResponse);
+
+      writer.println("quit");
+
+
+      reader.readLine();
+      System.out.println("message successfully forwarded");
+      this.sendDatagramPacket(sender);
+
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    } finally {
+      if (socket != null && !socket.isClosed()) {
+        try {
+          socket.close();
+        } catch (IOException e) {
+          // Ignored because we cannot handle it
+        }
+      }
+    }
+
+  }
+
+  public void sendDatagramPacket(String sender) {
+    String ip;
+    try {
+      ip = InetAddress.getLocalHost().getHostAddress();
+    } catch (UnknownHostException e) {
+      System.out.println("[ERROR] could not get ip address of transfer server");
+      return;
+    }
+
+    int port = this.config.getInt("tcp.port");
+    String message = ip + ":" + port + " " + sender;
+
+    byte[] buffer;
+    DatagramSocket socket = null;
+    DatagramPacket packet;
+    try {
+      socket = new DatagramSocket();
+      buffer = message.getBytes();
+      packet = new DatagramPacket(buffer, buffer.length, InetAddress.getByName(config.getString("monitoring.host")), config.getInt("monitoring.port"));
+      socket.send(packet);
+
+    } catch (SocketException e) {
+      System.out.println("Socket exception while handling socket: " + e.getMessage());
+
+    } catch (IOException e) {
+      System.err.println("IO Exception in ClientHandlerThread");
+      System.err.println(Arrays.toString(e.getStackTrace()));
+      throw new UncheckedIOException(e);
+
+    } finally {
+      if (socket != null && !socket.isClosed()) {
+        socket.close();
+      }
+    }
   }
 }

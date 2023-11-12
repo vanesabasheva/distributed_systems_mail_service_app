@@ -2,6 +2,7 @@ package dslab.protocol;
 
 import dslab.mailbox.MailboxServer;
 import dslab.transfer.tcp.Email;
+import dslab.util.Config;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +12,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class DmtpClientProtocol implements IProtocol {
+public class DmtpClientProtocol {
   private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
   private Map<String, AtomicInteger> emailIdGenerators;
   private static final int WAITING = 0;
@@ -20,16 +21,20 @@ public class DmtpClientProtocol implements IProtocol {
   private int state = WAITING;
   private List<String> recipients;
   private BlockingQueue<String> email;
+  private String domain;
+  private Config users;
   private Email emailCompletionChecker;
 
   public DmtpClientProtocol(Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
-                            Map<String, AtomicInteger> emailIdGenerators) {
+                            Map<String, AtomicInteger> emailIdGenerators,
+                            String domain, Config users) {
 
     this.userMailboxes = userMailboxes;
     this.emailIdGenerators = emailIdGenerators;
+    this.domain = domain;
+    this.users = users;
   }
 
-  @Override
   public String processCommand(String clientCommand) {
     String command = "", arguments = "";
     if (clientCommand != null) {
@@ -74,10 +79,10 @@ public class DmtpClientProtocol implements IProtocol {
           String[] usernameAndDomain = recipient.split("@");
 
           // check domain of current recipient, if it is not managed by this mailbox, the recipient is not considered
-          if (usernameAndDomain[1].equals(MailboxServer.getDOMAIN())) {
+          if (usernameAndDomain[1].equals(this.domain)) {
 
             // check if the user is a known user for the mailbox
-            if (MailboxServer.isKnownUser(usernameAndDomain[0])) {
+            if (this.isKnownUser(usernameAndDomain[0])) {
               this.emailCompletionChecker.setRecipients(tokens);
               recipients.add(usernameAndDomain[0]);
 
@@ -144,6 +149,10 @@ public class DmtpClientProtocol implements IProtocol {
         return processUnknownCommand(command);
       }
     }
+  }
+
+  private boolean isKnownUser(String username) {
+    return users.containsKey(username);
   }
 
   private String processUnknownCommand(String command) {

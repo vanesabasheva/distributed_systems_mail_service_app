@@ -4,10 +4,8 @@ import at.ac.tuwien.dsg.orvell.Shell;
 import at.ac.tuwien.dsg.orvell.StopShellException;
 import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
-import dslab.mailbox.tcp.dmtp.MailServerThread;
 import dslab.mailbox.tcp.dmap.UserMailServerThread;
-import dslab.protocol.DmapProtocol;
-import dslab.protocol.DmtpClientProtocol;
+import dslab.mailbox.tcp.dmtp.MailServerThread;
 import dslab.util.Config;
 
 import java.io.IOException;
@@ -25,6 +23,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class MailboxServer implements IMailboxServer, Runnable {
   private static String DOMAIN = "";
   private static Config USERS;
+  private String domain = "";
+  private Config users;
   private Config config;
   private String componentId;
   private Shell shell;
@@ -37,6 +37,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
   private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
   // a generator for incrementing the ids of the mails of a specific user
   private Map<String, AtomicInteger> emailIdGenerators;
+
   /**
    * Creates a new server instance.
    *
@@ -59,6 +60,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
   //with an error message
   @Override
   public void run() {
+    this.domain = this.config.getString("domain");
+    this.users = new Config(this.config.getString("users.config"));
+
     DOMAIN = this.config.getString("domain");
     USERS = new Config(this.config.getString("users.config"));
 
@@ -66,8 +70,9 @@ public class MailboxServer implements IMailboxServer, Runnable {
     this.userMailboxes = new ConcurrentHashMap<>();
     this.emailIdGenerators = new ConcurrentHashMap<>();
 
-    Set<String> usersInMailbox = USERS.listKeys();
-    for (String username: usersInMailbox) {
+    Set<String> usersInMailbox = users.listKeys();
+    System.out.println("[MBOX SERVER] Initialize users");
+    for (String username : usersInMailbox) {
       // initialize an empty mailbox for the current user
       Map<Integer, BlockingQueue<String>> mails = new ConcurrentHashMap<>();
       this.userMailboxes.put(username, mails);
@@ -76,14 +81,14 @@ public class MailboxServer implements IMailboxServer, Runnable {
       this.emailIdGenerators.put(username, new AtomicInteger(0));
     }
 
-    System.out.println("Starting [M SERVER]...");
+    System.out.println("Starting [MBOX SERVER]...");
     try {
       // Prepare to bind to the specified port, create and start new TCP Server Socket
       dmtpListener = new ServerSocket(config.getInt("dmtp.tcp.port"));
       dmapListener = new ServerSocket(config.getInt("dmap.tcp.port"));
 
-      new MailServerThread(dmtpListener, config, socketSet, userMailboxes, emailIdGenerators).start();
-      new UserMailServerThread(dmapListener, config, socketSet, userMailboxes).start();
+      new MailServerThread(dmtpListener, config, socketSet, userMailboxes, emailIdGenerators, domain, users).start();
+      new UserMailServerThread(dmapListener, config, socketSet, userMailboxes, users).start();
 
     } catch (IOException e) {
       throw new UncheckedIOException("Error while creating server socket", e);
@@ -100,7 +105,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
     if (dmtpListener != null && !dmtpListener.isClosed()) {
       try {
         this.dmtpListener.close();
-        System.out.println("[M DMTP SERVER] listener closed");
+        System.out.println("[MBOX DMTP SERVER] listener closed");
       } catch (IOException e) {
         System.err.println("Error while closing server socket: " + e.getMessage());
       }
@@ -108,7 +113,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
     if (dmapListener != null && !dmapListener.isClosed()) {
       try {
         this.dmapListener.close();
-        System.out.println("[M DMAP SERVER] listener closed...");
+        System.out.println("[MBOX DMAP SERVER] listener closed...");
       } catch (IOException e) {
         System.err.println("Error while closing dmap server socket");
       }
@@ -128,23 +133,10 @@ public class MailboxServer implements IMailboxServer, Runnable {
 
   }
 
-  // Checks if the username password pair is stored in this mailbox and returns a string
-  // that notifies if the username/password is incorrect or if login is accepted
-  public static String authenticateUser(String username, String password) {
-    if (!isKnownUser(username)) {
-      return "error unknown user";
-    } else if (!USERS.getString(username).equals(password)) {
-      return "error wrong password";
-    }
-    return "ok";
-  }
-
-  public static String getDOMAIN() {
-    return DOMAIN;
-  }
 
   public static boolean isKnownUser(String username) {
     //TODO: question, can we make it static?
+
     return USERS.containsKey(username);
   }
 

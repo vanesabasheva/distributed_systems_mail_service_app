@@ -1,9 +1,6 @@
 package dslab.transfer.tcp;
 
-import dslab.protocol.DmapProtocol;
-import dslab.protocol.DmtpClientProtocol;
 import dslab.protocol.DmtpServerProtocol;
-import dslab.protocol.IProtocol;
 import dslab.util.Config;
 
 import java.io.BufferedReader;
@@ -27,7 +24,8 @@ public class ClientHandlerThread implements Runnable {
   private ExecutorService emailForwardingPool;
   private BlockingQueue<String> email;
 
-  public ClientHandlerThread(Socket client, Config config, Config domains, DmtpServerProtocol protocol, Set<Socket> socketSet, ExecutorService emailForwardingPool) {
+  public ClientHandlerThread(Socket client, Config config, Config domains, DmtpServerProtocol protocol, Set<Socket> socketSet,
+                             ExecutorService emailForwardingPool) {
     this.client = client;
     this.config = config;
     this.domains = domains;
@@ -38,67 +36,69 @@ public class ClientHandlerThread implements Runnable {
 
   @Override
   public void run() {
-    while (true) {
-      // prepare the input reader for the socket
-      // prepare the writer for responding to clients requests
-      try (
-          PrintWriter writer =
-              new PrintWriter(client.getOutputStream(), true);
-          BufferedReader reader = new BufferedReader(
-              new InputStreamReader(client.getInputStream()));
-      ) {
 
-        String request, response;
+    // prepare the input reader for the socket
+    // prepare the writer for responding to clients requests
+    try (
+        PrintWriter writer =
+            new PrintWriter(client.getOutputStream(), true);
+        BufferedReader reader = new BufferedReader(
+            new InputStreamReader(client.getInputStream()));
+    ) {
 
-        // Initiate conversation with client depending on whether a user or the transfer server  is the client
+      String request, response;
 
-        response = protocol.processCommand(null);
+      // Initiate conversation with client depending on whether a user or the transfer server  is the client
 
-        writer.println(response);
+      response = protocol.processCommand(null);
 
-        // read client requests
-        while ((request = reader.readLine()) != null) {
+      writer.println(response);
 
-          //System.out.println("Client sent the following request: " + request);
+      // read client requests
+      while ((request = reader.readLine()) != null) {
 
-          // Process the command and arguments depending on the type of client (user or transfer server)
-          response = protocol.processCommand(request);
+        //System.out.println("Client sent the following request: " + request);
 
-          // if the client is done writing the mail and the dmtp protcol accepts it, a forwarding thread handles the sending
-          // to the mailbox
-          if(request.startsWith("send") && response.equals("ok")) {
-            for (String recipientDomain: protocol.getRecipientsDomain()) {
-              this.emailForwardingPool.execute(new EmailForwardingThread(recipientDomain, config, domains, this.protocol.getEmail()));
-            }
-          }
+        // Process the command and arguments depending on the type of client (user or transfer server)
+        response = protocol.processCommand(request);
 
-          writer.println(response);
-          if (response.equals("ok bye")) {
-            break;
-          }
+        // if the client is done writing the mail and the dmtp protcol accepts it, a forwarding thread handles the sending
+        // to the mailbox
 
-          if (response.equals("error protocol error")) {
-            break;
+        if (request.startsWith("send") && response.equals("ok")) {
+          System.out.println("DEBUG CLIENT HANDLER THREAD: in send");
+          for (String recipientDomain : protocol.getRecipientsDomain()) {
+            this.emailForwardingPool.execute(new EmailForwardingThread(recipientDomain, protocol.getSender(),config, domains, this.protocol.getEmail()));
           }
         }
 
-      } catch (SocketException e) {
-        // when the socket is closed, the I/O methods of the Socket will throw a SocketException
-        // almost all SocketException cases indicate that the socket was closed
-        System.out.println("SocketException while handling socket: " + e.getMessage());
-        break;
-      } catch (IOException e) {
-        System.err.println("IO Exception in ClientHandlerThread");
-        System.err.println(Arrays.toString(e.getStackTrace()));
-        // you should properly handle all other exceptions
-        throw new UncheckedIOException(e);
-      } finally {
-        if (client != null && !client.isClosed()) {
-          try {
-            client.close();
-          } catch (IOException e) {
-            // Ignored because we cannot handle it
-          }
+        writer.println(response);
+        if (response.equals("ok bye")) {
+          break;
+        }
+
+        if (response.equals("error protocol error")) {
+          break;
+        }
+      }
+
+    } catch (SocketException e) {
+      System.out.println("SocketException while handling socket: " + e.getMessage());
+
+    } catch (IOException e) {
+      System.err.println("IO Exception in ClientHandlerThread");
+      System.err.println(Arrays.toString(e.getStackTrace()));
+      throw new UncheckedIOException(e);
+
+    } finally {
+      if (client != null && !client.isClosed()) {
+        try {
+          client.close();
+          this.socketSet.remove(client);
+          System.out.println("[ClientHandlerThread] Socket is closed ");
+
+        } catch (IOException e) {
+          // Ignored because we cannot handle it
         }
       }
     }

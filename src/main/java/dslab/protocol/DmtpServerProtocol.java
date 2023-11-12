@@ -2,20 +2,21 @@ package dslab.protocol;
 
 import dslab.transfer.tcp.Email;
 
+import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
 
-public class DmtpServerProtocol implements IProtocol {
+public class DmtpServerProtocol {
   private static final int WAITING = 0;
   private static final int BEGIN = 1;
   private static final int WRITING = 2;
   private int state = WAITING;
   private BlockingQueue<String> email = new LinkedBlockingQueue<>();
   private BlockingQueue<String> recipientsDomains = new LinkedBlockingQueue<>();
+  private String sender = "";
   private Email emailCompletionChecker = new Email(null, null, null, null);
 
-  @Override
   public String processCommand(String clientCommand) {
     String command = "", arguments = "";
     if (clientCommand != null) {
@@ -86,6 +87,7 @@ public class DmtpServerProtocol implements IProtocol {
         }
         this.emailCompletionChecker.setSender(sender[0]);
         this.email.add(clientCommand);
+        this.sender = arguments;
         return "ok";
 
 
@@ -122,10 +124,12 @@ public class DmtpServerProtocol implements IProtocol {
           return "error no subject";
         }
         state = WRITING;
+        this.email.add(clientCommand);
         return "ok";
 
       } else if (command.equalsIgnoreCase("quit")) {
         state = WAITING;
+        this.email.add(clientCommand);
         return "ok bye";
       } else {
         return this.processUnknownCommand(command);
@@ -148,6 +152,10 @@ public class DmtpServerProtocol implements IProtocol {
 
   public BlockingQueue<String> getRecipientsDomain() {
     return this.recipientsDomains;
+  }
+
+  public String getSender() {
+    return this.sender;
   }
 
 }

@@ -24,8 +24,8 @@ public class ServerThread extends Thread {
 
   public ServerThread(ServerSocket serverSocket, Config config, Config domains, Set<Socket> socketSet) {
     this.serverSocket = serverSocket;
-    this.domains = domains;
     this.config = config;
+    this.domains = domains;
     this.socketSet = socketSet;
   }
 
@@ -47,9 +47,10 @@ public class ServerThread extends Thread {
       // when the socket is closed, the I/O methods of the Socket will throw a SocketException
       // almost all SocketException cases indicate that the socket was closed
       System.out.println("SocketException while handling socket: " + e.getMessage());
+
     } catch (IOException e) {
-      // you should properly handle all other exceptions
       throw new UncheckedIOException(e);
+
     } finally {
       if (pool != null) {
         pool.shutdownNow();

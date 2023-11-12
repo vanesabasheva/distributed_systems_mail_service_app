@@ -1,21 +1,25 @@
 package dslab.protocol;
 
 import dslab.mailbox.MailboxServer;
+import dslab.util.Config;
 
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 
-public class DmapProtocol implements IProtocol {
+public class DmapProtocol {
   private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
   private String username;
   private Map<Integer, BlockingQueue<String>> currentMailbox;
+  private Config users;
   private static final int WAITING = 0;
   private static final int LOGIN = 1;
   private static final int LOGGEDIN = 2;
   private int state = WAITING;
 
-  public DmapProtocol(Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes) {
+  public DmapProtocol(Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
+                      Config users) {
     this.userMailboxes = userMailboxes;
+    this.users = users;
   }
 
   public String processCommand(String clientCommand) {
@@ -43,7 +47,7 @@ public class DmapProtocol implements IProtocol {
         }
 
         // authenticate user with mailbox server method for credentials
-        String loggedIn = MailboxServer.authenticateUser(credentials[0], credentials[1]);
+        String loggedIn = this.authenticateUser(credentials[0], credentials[1]);
         if (loggedIn.equals("ok")) {
           username = credentials[0];
           state = LOGGEDIN;
@@ -125,6 +129,23 @@ public class DmapProtocol implements IProtocol {
     }
     return "";
   }
+
+  // Checks if the username password pair is stored in this mailbox and returns a string
+  // that notifies if the username/password is incorrect or if login is accepted
+  private String authenticateUser(String username, String password) {
+    System.out.println(username);
+    if (!isKnownUser(username)) {
+      return "error unknown user";
+    } else if (!this.users.getString(username).equals(password)) {
+      return "error wrong password";
+    }
+    return "ok";
+  }
+
+  private boolean isKnownUser(String username) {
+    return users.containsKey(username);
+  }
+
 
   private String processUnknownCommand(String command) {
     if (state == LOGIN) {
