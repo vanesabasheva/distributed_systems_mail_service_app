@@ -101,7 +101,7 @@ public class UserMailClientHandlerThread implements Runnable {
 
               // if we are not at the end of the mail, add a new line
               if(count < mail.size()){
-                line += System.lineSeparator();
+                response += System.lineSeparator();
               }
             }
 
