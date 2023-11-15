@@ -1,6 +1,7 @@
 package dslab.mailbox.tcp.dmap;
 
 import dslab.protocol.DmapProtocol;
+import dslab.transfer.tcp.Email;
 import dslab.util.Config;
 
 import java.io.IOException;
@@ -10,23 +11,20 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class UserMailServerThread extends Thread {
   private ServerSocket serverSocket;
-  private Config config;
   private Set<Socket> socketSet;
   private Config users;
-  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
+  private Map<String, Map<Integer, Email>> userMailboxes;
   private final ExecutorService pool = Executors.newCachedThreadPool();
 
-  public UserMailServerThread(ServerSocket serverSocket, Config config, Set<Socket> socketSet,
-                              Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
+  public UserMailServerThread(ServerSocket serverSocket, Set<Socket> socketSet,
+                              Map<String, Map<Integer, Email>> userMailboxes,
                               Config users) {
     this.serverSocket = serverSocket;
-    this.config = config;
     this.socketSet = socketSet;
     this.userMailboxes = userMailboxes;
     this.users = users;
@@ -40,7 +38,7 @@ public class UserMailServerThread extends Thread {
         // [MAILBOX SERVER]: waits for a client to connect (can be a TransferServer or a normal user)...
         Socket client = serverSocket.accept();
         // [MAILBOX SERVER]: Connects to a client
-        UserMailClientHandlerThread MailClientHandlerThread = new UserMailClientHandlerThread(client, config, new DmapProtocol(userMailboxes, users));
+        UserMailClientHandlerThread MailClientHandlerThread = new UserMailClientHandlerThread(client, new DmapProtocol(userMailboxes, users));
         socketSet.add(client);
 
         // handle incoming connections from client in a separate thread

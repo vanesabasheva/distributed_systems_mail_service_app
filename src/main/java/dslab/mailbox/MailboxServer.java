@@ -6,6 +6,7 @@ import at.ac.tuwien.dsg.orvell.annotation.Command;
 import dslab.ComponentFactory;
 import dslab.mailbox.tcp.dmap.UserMailServerThread;
 import dslab.mailbox.tcp.dmtp.MailServerThread;
+import dslab.transfer.tcp.Email;
 import dslab.util.Config;
 
 import java.io.IOException;
@@ -16,27 +17,16 @@ import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class MailboxServer implements IMailboxServer, Runnable {
-  private static String DOMAIN = "";
-  private static Config USERS;
-  private String domain = "";
-  private Config users;
   private Config config;
   private String componentId;
   private Shell shell;
   private ServerSocket dmapListener;
   private ServerSocket dmtpListener;
   private Set<Socket> socketSet;
-  // a map containing the username as key, and his personal mailbox
-  // as a map of an integer (for the mail id) and a blocking queue from
-  // strings (the latter is equal to a mail) which is thread safe
-  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
-  // a generator for incrementing the ids of the mails of a specific user
-  private Map<String, AtomicInteger> emailIdGenerators;
 
   /**
    * Creates a new server instance.
@@ -60,25 +50,27 @@ public class MailboxServer implements IMailboxServer, Runnable {
   //with an error message
   @Override
   public void run() {
-    this.domain = this.config.getString("domain");
-    this.users = new Config(this.config.getString("users.config"));
-
-    DOMAIN = this.config.getString("domain");
-    USERS = new Config(this.config.getString("users.config"));
+    String domain = this.config.getString("domain");
+    Config users = new Config(this.config.getString("users.config"));
 
     // initialize empty storage for mailboxes and storage for id generators for each user
-    this.userMailboxes = new ConcurrentHashMap<>();
-    this.emailIdGenerators = new ConcurrentHashMap<>();
+    // a map containing the username as key, and his personal mailbox
+    // as a map of an integer (for the mail id) and a blocking queue from
+    // strings (the latter is equal to a mail) which is thread safe
+    Map<String, Map<Integer, Email>> userMailboxes = new ConcurrentHashMap<>();
+
+    // a generator for incrementing the ids of the mails of a specific user
+    Map<String, AtomicInteger> emailIdGenerators = new ConcurrentHashMap<>();
 
     Set<String> usersInMailbox = users.listKeys();
     System.out.println("[MBOX SERVER] Initialize users");
     for (String username : usersInMailbox) {
       // initialize an empty mailbox for the current user
-      Map<Integer, BlockingQueue<String>> mails = new ConcurrentHashMap<>();
-      this.userMailboxes.put(username, mails);
+      Map<Integer, Email> mails = new ConcurrentHashMap<>();
+      userMailboxes.put(username, mails);
 
       // start incrementing the mail ids from id = 0
-      this.emailIdGenerators.put(username, new AtomicInteger(0));
+      emailIdGenerators.put(username, new AtomicInteger(0));
     }
 
     System.out.println("Starting [MBOX SERVER]...");
@@ -88,7 +80,7 @@ public class MailboxServer implements IMailboxServer, Runnable {
       dmapListener = new ServerSocket(config.getInt("dmap.tcp.port"));
 
       new MailServerThread(dmtpListener, config, socketSet, userMailboxes, emailIdGenerators, domain, users).start();
-      new UserMailServerThread(dmapListener, config, socketSet, userMailboxes, users).start();
+      new UserMailServerThread(dmapListener, socketSet, userMailboxes, users).start();
 
     } catch (IOException e) {
       throw new UncheckedIOException("Error while creating server socket", e);
@@ -131,13 +123,6 @@ public class MailboxServer implements IMailboxServer, Runnable {
     // close shell
     throw new StopShellException();
 
-  }
-
-
-  public static boolean isKnownUser(String username) {
-    //TODO: question, can we make it static?
-
-    return USERS.containsKey(username);
   }
 
   public static void main(String[] args) throws Exception {

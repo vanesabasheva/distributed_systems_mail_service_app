@@ -1,22 +1,21 @@
 package dslab.protocol;
 
-import dslab.mailbox.MailboxServer;
+import dslab.transfer.tcp.Email;
 import dslab.util.Config;
 
 import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 
 public class DmapProtocol {
-  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
+  private Map<String, Map<Integer, Email>> userMailboxes;
   private String username;
-  private Map<Integer, BlockingQueue<String>> currentMailbox;
+  private Map<Integer, Email> currentMailbox;
   private Config users;
   private static final int WAITING = 0;
   private static final int LOGIN = 1;
   private static final int LOGGEDIN = 2;
   private int state = WAITING;
 
-  public DmapProtocol(Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
+  public DmapProtocol(Map<String, Map<Integer, Email>> userMailboxes,
                       Config users) {
     this.userMailboxes = userMailboxes;
     this.users = users;
@@ -72,7 +71,21 @@ public class DmapProtocol {
           return "no emails to list";
         }
 
-        return "ok";
+        String response = "";
+        for (Map.Entry<Integer, Email> mail : currentMailbox.entrySet()) {
+          // process email and get the information for sender and subject
+          String from = " " + mail.getValue().getSender();
+          String subject = " " + mail.getValue().getSubject();
+
+          // add new line to the response so that the next email summary is printed on the next line
+          if (response.length() > 0) {
+            response += System.lineSeparator();
+          }
+
+          response += mail.getKey() + from + subject;
+        }
+
+        return response;
 
       } else if (command.equalsIgnoreCase("show")) {
         if (arguments.equals("")) {
@@ -93,7 +106,17 @@ public class DmapProtocol {
           return "error no mail with specified id found";
         }
 
-        return "ok";
+        Email mail = this.getEmailWithId(emailId);
+        String from = "from " + mail.getSender() + System.lineSeparator();
+
+        String[] recipientsArray = mail.getRecipients();
+        String recipientsString = String.join(",", recipientsArray);
+        String to = "to " + recipientsString + System.lineSeparator();
+
+        String subject = "subject " + mail.getSubject() + System.lineSeparator();
+        String data = "data " + mail.getData();
+
+        return from + to + subject + data;
 
       } else if (command.equalsIgnoreCase("logout")) {
         state = LOGIN;
@@ -168,11 +191,7 @@ public class DmapProtocol {
     return "error unknown command";
   }
 
-  public Map<Integer, BlockingQueue<String>> getCurrentMailbox() {
-    return this.currentMailbox;
-  }
-
-  public BlockingQueue<String> getEmailWithId(Integer key) {
+  private Email getEmailWithId(Integer key) {
     return currentMailbox.get(key);
   }
 

@@ -1,6 +1,7 @@
 package dslab.mailbox.tcp.dmtp;
 
 import dslab.protocol.DmtpClientProtocol;
+import dslab.transfer.tcp.Email;
 import dslab.util.Config;
 
 import java.io.IOException;
@@ -10,7 +11,6 @@ import java.net.Socket;
 import java.net.SocketException;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -19,14 +19,14 @@ public class MailServerThread extends Thread {
   private final ServerSocket serverSocket;
   private final Config config;
   private Set<Socket> socketSet;
-  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
+  private Map<String, Map<Integer, Email>> userMailboxes;
   private Map<String, AtomicInteger> emailIdGenerators;
   private String domain;
   private Config users;
   private final ExecutorService pool = Executors.newCachedThreadPool();
 
   public MailServerThread(ServerSocket serverSocket, Config config, Set<Socket> socketSet,
-                          Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
+                          Map<String, Map<Integer, Email>> userMailboxes,
                           Map<String, AtomicInteger> emailIdGenerators,
                           String domain, Config users) {
     this.serverSocket = serverSocket;

@@ -20,76 +20,92 @@ public class EmailForwardingThread implements Runnable {
 
   private Config config;
   private Config domains;
-  private String recipientDomain;
-  private String sender;
-  private final BlockingQueue<String> email;
+  private BlockingQueue<Email> emailsToBeSent;
 
-  public EmailForwardingThread(String recipientDomain, String sender, Config config, Config domains, BlockingQueue<String> email) {
-    this.recipientDomain = recipientDomain;
-    this.sender = sender;
+  public EmailForwardingThread(Config config, Config domains, BlockingQueue<Email> emailsToBeSent) {
     this.config = config;
     this.domains = domains;
-    this.email = email;
-
+    this.emailsToBeSent = emailsToBeSent;
   }
 
   @Override
   public void run() {
-    Socket socket = null;
-
     try {
-
-      String[] receiverAddress = this.domainLookup(recipientDomain);
-      if (receiverAddress == null) {
-        System.out.println("[Email Forwarding Thread ERROR]: No such domain found");
-        this.sendErrorEmail("domain not found for " + recipientDomain);
-        return;
+      while (true) {
+        Email email = emailsToBeSent.take(); // Blocking if the queue is empty
+        // Forwarding logic...
+        this.forwardEmail(email);
       }
+    } catch (InterruptedException e) {
+      Thread.currentThread().interrupt();
+    }
+  }
 
-      /*
-       * create a new tcp socket at specified host and port - make sure
-       * you specify them correctly in the domain properties file
-       */
-      String ip = receiverAddress[0];
-      int port = Integer.parseInt(receiverAddress[1]);
+  public void forwardEmail(Email email) {
+    // Forwarding logic...
+    Socket socket = null;
+    String sender = email.getSender();
+    try {
+      for (String recipient : email.getRecipients()) {
 
-      socket = new Socket(ip, port);
-      // create a reader to retrieve messages send by the server
-      BufferedReader serverReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-      // create a writer to send messages to the server
-      PrintWriter serverWriter = new PrintWriter(socket.getOutputStream(), true);
+        String domain = recipient.split("@")[1];
+        String[] receiverAddress = this.domainLookup(domain);
 
-      String connectionEstablishedMessage = serverReader.readLine();
-      if (!connectionEstablishedMessage.equals("ok DMTP")) {
-        this.sendErrorEmail("error when contacting server");
-        return;
-      }
-
-      //read email sent from user
-      for (String sendLine : email) {
-
-        if (sendLine == null) {
-          sendLine = "quit";
+        if (receiverAddress == null) {
+          System.out.println("[Email Forwarding Thread ERROR]: No such domain found");
+          this.sendErrorEmail("domain not found for " + domain, sender);
+          continue;
         }
 
-        //write provided user input to the socket
-        serverWriter.println(sendLine);
-        String serverResponse = serverReader.readLine();
+        /*
+         * create a new tcp socket at specified host and port - make sure
+         * you specify them correctly in the domain properties file
+         */
+        String ip = receiverAddress[0];
+        int port = Integer.parseInt(receiverAddress[1]);
 
-        if (serverResponse.startsWith("error")) {
-          this.sendErrorEmail("mailbox responded with an error message: " + serverResponse);
-          return;
+        socket = new Socket(ip, port);
+        // create a reader to retrieve messages send by the server
+        BufferedReader serverReader = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+        // create a writer to send messages to the server
+        PrintWriter serverWriter = new PrintWriter(socket.getOutputStream(), true);
+
+        String connectionEstablishedMessage = serverReader.readLine();
+        if (!connectionEstablishedMessage.equals("ok DMTP")) {
+          this.sendErrorEmail("error when contacting server", sender);
+          continue;
         }
 
-        if (sendLine.contains("send")) {
-          System.out.println("[Forwarding THREAD] message successfully forwarded");
-        } else if (sendLine.equalsIgnoreCase("quit")) {
-          System.out.println("[EMAIL Forwarding THREAD] message successfully forwarded");
-          this.sendDatagramPacket(this.sender);
-          break;
-        }
+        //read email sent from user
+        serverWriter.println("begin");
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        serverWriter.println("from " + email.getSender());
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        String[] recipientsArray = email.getRecipients();
+        // Using String.join
+        String recipientsString = String.join(",", recipientsArray);
+        serverWriter.println("to " + recipientsString);
+
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        serverWriter.println("subject " + email.getSubject());
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        serverWriter.println("data " + email.getData());
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        serverWriter.println("send");
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        serverWriter.println("quit");
+        if(this.checkStatus(serverReader, sender)) continue;
+
+        System.out.println("[Forwarding THREAD] message successfully forwarded");
+        this.sendDatagramPacket(email.getSender());
+        System.out.println("[Forwarding THREAD] datagram packet successfully forwarded");
       }
-
     } catch (UnknownHostException e) {
       System.out.println("Cannot connect to host: " + e.getMessage());
 
@@ -112,6 +128,17 @@ public class EmailForwardingThread implements Runnable {
     }
   }
 
+  private boolean checkStatus(BufferedReader serverReader, String sender) throws IOException {
+    String serverResponse = serverReader.readLine();
+
+    if (serverResponse.startsWith("error")) {
+      this.sendErrorEmail("mailbox responded with an error message: " + serverResponse, sender);
+      return true;
+    }
+    return false;
+  }
+
+
   public String[] domainLookup(String domain) {
     if (!this.domains.containsKey(domain)) {
       return null;
@@ -121,7 +148,7 @@ public class EmailForwardingThread implements Runnable {
     return ipAndPort.split(":", 2);
   }
 
-  public void sendErrorEmail(String errorMessage) {
+  public void sendErrorEmail(String errorMessage, String sender) {
     String ip;
     try {
       ip = InetAddress.getLocalHost().getHostAddress();
@@ -130,7 +157,7 @@ public class EmailForwardingThread implements Runnable {
       return;
     }
 
-    String to = "to " + this.sender;
+    String to = "to " + sender;
     String from = "from mailer@" + ip;
     String subject = "subject error";
 
@@ -181,7 +208,6 @@ public class EmailForwardingThread implements Runnable {
 
       writer.println("quit");
 
-
       reader.readLine();
       System.out.println("message successfully forwarded");
       this.sendDatagramPacket(sender);
@@ -197,7 +223,6 @@ public class EmailForwardingThread implements Runnable {
         }
       }
     }
-
   }
 
   public void sendDatagramPacket(String sender) {

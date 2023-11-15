@@ -2,7 +2,6 @@ package dslab.protocol;
 
 import dslab.transfer.tcp.Email;
 
-import java.util.Arrays;
 import java.util.Objects;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -12,10 +11,8 @@ public class DmtpServerProtocol {
   private static final int BEGIN = 1;
   private static final int WRITING = 2;
   private int state = WAITING;
-  private BlockingQueue<String> email = new LinkedBlockingQueue<>();
   private BlockingQueue<String> recipientsDomains = new LinkedBlockingQueue<>();
-  private String sender = "";
-  private Email emailCompletionChecker = new Email(null, null, null, null);
+  private Email email;
 
   public String processCommand(String clientCommand) {
     String command = "", arguments = "";
@@ -32,8 +29,7 @@ public class DmtpServerProtocol {
       if (command.equalsIgnoreCase("begin") && arguments.equals("")) {
         state = WRITING;
         // reset email queue when beginning writing a new email
-        email = new LinkedBlockingQueue<>();
-        this.email.add(clientCommand);
+        this.email = new Email(null, null, null, null);
         return "ok";
       } else {
         if (processUnknownCommand(command).equals("error protocol error")) {
@@ -64,8 +60,7 @@ public class DmtpServerProtocol {
           }
         }
 
-        this.emailCompletionChecker.setRecipients(recipients);
-        this.email.add(clientCommand);
+        this.email.setRecipients(recipients);
 
         String recipientNo = String.valueOf(recipients.length);
         return "ok " + recipientNo;
@@ -85,51 +80,44 @@ public class DmtpServerProtocol {
         if (sender.length != 2) {
           return "error not a valid mail";
         }
-        this.emailCompletionChecker.setSender(sender[0]);
-        this.email.add(clientCommand);
-        this.sender = arguments;
+        this.email.setSender(arguments);
         return "ok";
 
 
       } else if (command.equalsIgnoreCase("subject")) {
-        this.emailCompletionChecker.setSubject(arguments);
-        this.email.add(clientCommand);
+        this.email.setSubject(arguments);
         return "ok";
 
 
       } else if (command.equalsIgnoreCase("data")) {
-        this.emailCompletionChecker.setData(arguments);
-        this.email.add(clientCommand);
+        this.email.setData(arguments);
         return "ok";
 
       } else if (command.equalsIgnoreCase("begin")) {
         // reset everything written in the mail
-        this.emailCompletionChecker = new Email(null, null, null, null);
-        this.email = new LinkedBlockingQueue<>();
+        this.email = new Email(null, null, null, null);
         return "ok";
 
       } else if (command.equalsIgnoreCase("send")) {
         //check if all data for the email is given
-        if (this.emailCompletionChecker.getSender() == null) {
+        if (this.email.getSender() == null) {
           return "error no sender";
         }
-        if (this.emailCompletionChecker.getRecipients() == null) {
+        if (this.email.getRecipients() == null) {
           return "error no recipient";
 
         }
-        if (this.emailCompletionChecker.getData() == null) {
+        if (this.email.getData() == null) {
           return "error no data";
         }
-        if (this.emailCompletionChecker.getSubject() == null) {
+        if (this.email.getSubject() == null) {
           return "error no subject";
         }
         state = WRITING;
-        this.email.add(clientCommand);
         return "ok";
 
       } else if (command.equalsIgnoreCase("quit")) {
         state = WAITING;
-        this.email.add(clientCommand);
         return "ok bye";
       } else {
         return this.processUnknownCommand(command);
@@ -146,16 +134,8 @@ public class DmtpServerProtocol {
     return "error unknown command";
   }
 
-  public BlockingQueue<String> getEmail() {
+  public Email getEmail() {
     return this.email;
-  }
-
-  public BlockingQueue<String> getRecipientsDomain() {
-    return this.recipientsDomains;
-  }
-
-  public String getSender() {
-    return this.sender;
   }
 
 }

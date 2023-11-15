@@ -1,7 +1,6 @@
 package dslab.transfer.tcp;
 
 import dslab.protocol.DmtpServerProtocol;
-import dslab.util.Config;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -13,25 +12,19 @@ import java.net.SocketException;
 import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
 
 public class ClientHandlerThread implements Runnable {
   private Socket client;
-  private Config config;
-  private Config domains;
   private DmtpServerProtocol protocol;
   private Set<Socket> socketSet;
-  private ExecutorService emailForwardingPool;
-  private BlockingQueue<String> email;
+  private BlockingQueue<Email> emailsToBeSent;
 
-  public ClientHandlerThread(Socket client, Config config, Config domains, DmtpServerProtocol protocol, Set<Socket> socketSet,
-                             ExecutorService emailForwardingPool) {
+  public ClientHandlerThread(Socket client, DmtpServerProtocol protocol, Set<Socket> socketSet,
+                             BlockingQueue<Email> emailsToBeSent) {
     this.client = client;
-    this.config = config;
-    this.domains = domains;
     this.protocol = protocol;
     this.socketSet = socketSet;
-    this.emailForwardingPool = emailForwardingPool;
+    this.emailsToBeSent = emailsToBeSent;
   }
 
   @Override
@@ -43,7 +36,7 @@ public class ClientHandlerThread implements Runnable {
         PrintWriter writer =
             new PrintWriter(client.getOutputStream(), true);
         BufferedReader reader = new BufferedReader(
-            new InputStreamReader(client.getInputStream()));
+            new InputStreamReader(client.getInputStream()))
     ) {
 
       String request, response;
@@ -66,10 +59,7 @@ public class ClientHandlerThread implements Runnable {
         // to the mailbox
 
         if (request.startsWith("send") && response.equals("ok")) {
-          System.out.println("DEBUG CLIENT HANDLER THREAD: in send");
-          for (String recipientDomain : protocol.getRecipientsDomain()) {
-            this.emailForwardingPool.execute(new EmailForwardingThread(recipientDomain, protocol.getSender(),config, domains, this.protocol.getEmail()));
-          }
+          this.emailsToBeSent.add(this.protocol.getEmail());
         }
 
         writer.println(response);

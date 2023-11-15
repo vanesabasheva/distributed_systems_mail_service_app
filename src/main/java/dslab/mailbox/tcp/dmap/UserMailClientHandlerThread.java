@@ -1,7 +1,6 @@
 package dslab.mailbox.tcp.dmap;
 
 import dslab.protocol.DmapProtocol;
-import dslab.util.Config;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -11,17 +10,13 @@ import java.io.UncheckedIOException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
-import java.util.Map;
-import java.util.concurrent.BlockingQueue;
 
 public class UserMailClientHandlerThread implements Runnable {
   private Socket client;
-  private Config config;
   private DmapProtocol protocol;
 
-  public UserMailClientHandlerThread(Socket client, Config config, DmapProtocol protocol) {
+  public UserMailClientHandlerThread(Socket client, DmapProtocol protocol) {
     this.client = client;
-    this.config = config;
     this.protocol = protocol;
   }
 
@@ -35,7 +30,7 @@ public class UserMailClientHandlerThread implements Runnable {
           PrintWriter writer =
               new PrintWriter(client.getOutputStream(), true);
           BufferedReader reader = new BufferedReader(
-              new InputStreamReader(client.getInputStream()));
+              new InputStreamReader(client.getInputStream()))
       ) {
 
         String request, response;
@@ -51,61 +46,6 @@ public class UserMailClientHandlerThread implements Runnable {
 
           // Process the command and arguments depending on the type of client (user or transfer server)
           response = protocol.processCommand(request);
-
-          // case when the user wants to see all mails in his mailbox and the protocol responded with okay
-          String[] tokens = request.split("\\s", 2);
-          if(tokens[0].equalsIgnoreCase("list") && response.equals("ok")) {
-            Map<Integer, BlockingQueue<String>> mails = this.protocol.getCurrentMailbox();
-            response = "";
-
-
-            for (Map.Entry<Integer, BlockingQueue<String>> mail: mails.entrySet()) {
-              BlockingQueue<String> lines = mail.getValue();
-              String from = "";
-              String subject = "";
-
-              // process email and get the information for sender and subject
-              for (String line: lines) {
-                if(line.contains("from") && line.contains("@")) {
-                  from = line.split("\\s")[1];
-                } else if(line.contains("subject")) {
-                  subject = line.split("\\s", 2)[1];
-                }
-
-                if(from != "" && subject != ""){
-                  break;
-                }
-              }
-
-              // add new line to the response so that the next email summary is printed on the next line
-              if(response.length() > 0) {
-                response += System.lineSeparator();
-              }
-
-
-              response += mail.getKey() + " " + from + " " + subject;
-            }
-          }
-
-          if (tokens[0].equalsIgnoreCase("show") && response.equals("ok")) {
-            BlockingQueue<String> mail = protocol.getEmailWithId(Integer.parseInt(tokens[1]));
-            response = "";
-            int count = 0;
-
-            // process every line of the email and save it to the response variable
-            for (String line: mail) {
-
-              response += line;
-              count++;
-
-
-              // if we are not at the end of the mail, add a new line
-              if(count < mail.size()){
-                response += System.lineSeparator();
-              }
-            }
-
-          }
 
           writer.println(response);
           if (response.equals("ok bye")) {

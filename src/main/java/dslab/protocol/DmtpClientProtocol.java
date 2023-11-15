@@ -1,6 +1,5 @@
 package dslab.protocol;
 
-import dslab.mailbox.MailboxServer;
 import dslab.transfer.tcp.Email;
 import dslab.util.Config;
 
@@ -8,24 +7,21 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class DmtpClientProtocol {
-  private Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes;
+  private Map<String, Map<Integer, Email>> userMailboxes;
   private Map<String, AtomicInteger> emailIdGenerators;
   private static final int WAITING = 0;
   private static final int BEGIN = 1;
   private static final int SENDING = 2;
   private int state = WAITING;
   private List<String> recipients;
-  private BlockingQueue<String> email;
   private String domain;
   private Config users;
-  private Email emailCompletionChecker;
+  private Email email;
 
-  public DmtpClientProtocol(Map<String, Map<Integer, BlockingQueue<String>>> userMailboxes,
+  public DmtpClientProtocol(Map<String, Map<Integer, Email>> userMailboxes,
                             Map<String, AtomicInteger> emailIdGenerators,
                             String domain, Config users) {
 
@@ -50,9 +46,8 @@ public class DmtpClientProtocol {
 
     } else if (state == BEGIN) {
       state = SENDING;
-      this.email = new LinkedBlockingQueue<>();
+      this.email = new Email(null,null,null,null);
       this.recipients = new ArrayList<>();
-      this.emailCompletionChecker = new Email(null, null, null, null);
 
       if (command.equalsIgnoreCase("quit")) {
         return "ok bye";
@@ -74,7 +69,7 @@ public class DmtpClientProtocol {
 
         String[] tokens = arguments.split(",");
 
-        // add the accepted recipients (those stored in the mailbox) to the list
+        // add the accepted recipients (those stored in the mailbox) to the list of recipients
         for (String recipient : tokens) {
           String[] usernameAndDomain = recipient.split("@");
 
@@ -83,7 +78,6 @@ public class DmtpClientProtocol {
 
             // check if the user is a known user for the mailbox
             if (this.isKnownUser(usernameAndDomain[0])) {
-              this.emailCompletionChecker.setRecipients(tokens);
               recipients.add(usernameAndDomain[0]);
 
             } else {
@@ -93,41 +87,39 @@ public class DmtpClientProtocol {
           }
         }
 
-        this.email.add(clientCommand);
+        this.email.setRecipients(tokens);
         return "ok " + recipients.size();
 
       } else if (command.equalsIgnoreCase("from")) {
-        this.email.add(clientCommand);
-        this.emailCompletionChecker.setSender(arguments);
+        this.email.setSender(arguments);
         return "ok";
 
       } else if (command.equalsIgnoreCase("subject")) {
-        this.emailCompletionChecker.setSubject(arguments);
-        this.email.add(clientCommand);
+        this.email.setSubject(arguments);
         return "ok";
 
       } else if (command.equalsIgnoreCase("data")) {
-        this.emailCompletionChecker.setData(arguments);
-        this.email.add(clientCommand);
+        this.email.setData(arguments);
         return "ok";
 
       } else if (command.equalsIgnoreCase("send")) {
 
-        if (this.emailCompletionChecker.getSender() == null) {
+        if (this.email.getSender() == null) {
           return "error no sender";
         }
-        if (this.emailCompletionChecker.getRecipients() == null) {
+        if (this.email.getRecipients() == null) {
           return "error no recipient";
 
         }
-        if (this.emailCompletionChecker.getData() == null) {
+        if (this.email.getData() == null) {
           return "error no data";
         }
-        if (this.emailCompletionChecker.getSubject() == null) {
+        if (this.email.getSubject() == null) {
           return "error no subject";
         }
 
         String response = saveEmail();
+
         if (response.equals("ok")) {
           state = BEGIN;
           this.recipients.clear();
@@ -136,8 +128,7 @@ public class DmtpClientProtocol {
 
       } else if (command.equalsIgnoreCase("begin")) {
         // reset everything written in the mail
-        this.emailCompletionChecker = new Email(null, null, null, null);
-        this.email = new LinkedBlockingQueue<>();
+        this.email = new Email(null, null, null, null);
         this.recipients.clear();
         state = SENDING;
         return "ok";
