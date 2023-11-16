@@ -11,6 +11,7 @@ import java.io.UncheckedIOException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.Set;
 
 // takes care of incoming TCP connections from Transfer Server, the protocol takes care for saving the messages in the corresponding
 // mailbox if everything is correct
@@ -18,11 +19,13 @@ public class MailClientHandlerThread implements Runnable {
   private Socket client;
   private Config config;
   private DmtpClientProtocol protocol;
+  private Set<Socket> socketSet;
 
-  public MailClientHandlerThread(Socket client, Config config, DmtpClientProtocol protocol) {
+  public MailClientHandlerThread(Socket client, Set<Socket> socketSet, Config config, DmtpClientProtocol protocol) {
     this.client = client;
     this.config = config;
     this.protocol = protocol;
+    this.socketSet = socketSet;
   }
 
   @Override
@@ -72,6 +75,7 @@ public class MailClientHandlerThread implements Runnable {
       if (client != null && !client.isClosed()) {
         try {
           client.close();
+          this.socketSet.remove(client);
         } catch (IOException e) {
           // Ignored because we cannot handle it
         }

@@ -46,7 +46,7 @@ public class MailServerThread extends Thread {
         // [MAILBOX SERVER]: waits for a client to connect (can be a TransferServer or a normal user)...
         Socket client = serverSocket.accept();
         // [MAILBOX SERVER]: Connects to a client
-        MailClientHandlerThread MailClientHandlerThread = new MailClientHandlerThread(client, config,  new DmtpClientProtocol(userMailboxes, emailIdGenerators, domain, users));
+        MailClientHandlerThread MailClientHandlerThread = new MailClientHandlerThread(client, socketSet, config, new DmtpClientProtocol(userMailboxes, emailIdGenerators, domain, users));
         socketSet.add(client);
 
         // handle incoming connections from client in a separate thread

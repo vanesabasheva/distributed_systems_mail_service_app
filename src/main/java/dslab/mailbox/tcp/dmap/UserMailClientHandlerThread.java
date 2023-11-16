@@ -10,14 +10,17 @@ import java.io.UncheckedIOException;
 import java.net.Socket;
 import java.net.SocketException;
 import java.util.Arrays;
+import java.util.Set;
 
 public class UserMailClientHandlerThread implements Runnable {
   private Socket client;
   private DmapProtocol protocol;
+  private Set<Socket> socketSet;
 
-  public UserMailClientHandlerThread(Socket client, DmapProtocol protocol) {
+  public UserMailClientHandlerThread(Socket client, Set<Socket> socketSet, DmapProtocol protocol) {
     this.client = client;
     this.protocol = protocol;
+    this.socketSet = socketSet;
   }
 
   @Override
@@ -71,6 +74,7 @@ public class UserMailClientHandlerThread implements Runnable {
         if (client != null && !client.isClosed()) {
           try {
             client.close();
+            this.socketSet.remove(client);
           } catch (IOException e) {
             // Ignored because we cannot handle it
           }
